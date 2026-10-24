@@ -1,16 +1,44 @@
+"""Settings & Audit Logs — User Preferences, Experience Level, and Governance."""
+
 import pandas as pd
 import streamlit as st
 from app.config import settings
 from app.database.supabase_client import db_repo
+from app.ui.components import render_global_header
 
 
 def render_settings_page() -> None:
-    st.title("Settings & Audit Logs — Governance")
-    st.caption("Risk Threshold Customization • Notification Channels • Immutable System Audit Trail")
+    render_global_header()
+
+    st.markdown(
+        """
+        <div style="margin-bottom: 16px;">
+            <h1 style="margin: 0; font-size: 2.1rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.5px;">Settings & Governance</h1>
+            <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.95rem;">Interface Preferences • Risk Thresholds • Notification Channels • Immutable System Audit Trail</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     set_tab1, set_tab2 = st.tabs(["Platform Settings", "Immutable Audit Logs"])
 
     with set_tab1:
+        st.subheader("Interface Experience Level")
+        current_exp = st.session_state.get("ui_experience_level", "Beginner Mode")
+        exp_choice = st.radio(
+            "Select UI Experience Level",
+            ["Beginner Mode (Simplified terms, guided builders, educational tooltips)", "Advanced Mode (Full quantitative matrix, Greek derivatives, raw payloads)"],
+            index=0 if "Beginner" in current_exp else 1,
+            horizontal=True,
+        )
+        if exp_choice != current_exp:
+            st.session_state["ui_experience_level"] = exp_choice
+            st.success(f"Experience level updated to: **{exp_choice.split(' ')[0]} Mode**")
+
+        st.caption("ℹ️ Changing interface preference does not alter strategy parameters, risk thresholds, or account permissions.")
+
+        st.markdown("---")
+
         st.subheader("Trader Profile & Compliance Authorization")
         st.text_input("User ID / Profile", value="quant_trader_01", disabled=True)
         st.text_input("Role", value="System Administrator & Risk Officer", disabled=True)

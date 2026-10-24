@@ -1,40 +1,64 @@
+"""Market Terminal — NSE Multi-Timeframe Workstation & Charting Experience."""
+
 import pandas as pd
 import streamlit as st
-from app.ui.components import create_candlestick_chart, generate_sample_market_data
+from app.paper import paper_broker
+from app.risk import risk_authority
+from app.ui.components import (
+    create_candlestick_chart,
+    generate_sample_market_data,
+    render_global_header,
+)
 
 INSTRUMENT_CATALOG = {
     "NIFTY 50": {"segment": "INDEX", "base": 24650.0, "lot_size": 25, "tick_size": 0.05},
     "BANKNIFTY": {"segment": "INDEX", "base": 51200.0, "lot_size": 15, "tick_size": 0.05},
+    "FINNIFTY": {"segment": "INDEX", "base": 23410.0, "lot_size": 40, "tick_size": 0.05},
     "RELIANCE": {"segment": "EQUITY_CASH", "base": 2840.0, "lot_size": 1, "tick_size": 0.05},
     "TCS": {"segment": "EQUITY_CASH", "base": 4120.0, "lot_size": 1, "tick_size": 0.05},
     "HDFCBANK": {"segment": "EQUITY_CASH", "base": 1680.0, "lot_size": 1, "tick_size": 0.05},
     "INFY": {"segment": "EQUITY_CASH", "base": 1740.0, "lot_size": 1, "tick_size": 0.05},
-    "TATAMOTORS": {"segment": "EQUITY_CASH", "base": 980.0, "lot_size": 1, "tick_size": 0.05},
-    "NIFTY_FUT_OCT": {"segment": "EQUITY_FUTURES", "base": 24710.0, "lot_size": 25, "tick_size": 0.05},
+    "ICICIBANK": {"segment": "EQUITY_CASH", "base": 1150.0, "lot_size": 1, "tick_size": 0.05},
 }
 
 
 def render_terminal_page() -> None:
-    st.title("Market Terminal — NSE Workstation")
-    st.caption("Real-Time & Historical Technical Analysis • Instrument Depth & Multi-Timeframe")
+    render_global_header()
 
-    # Instrument Selector Bar
-    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+    st.markdown(
+        """
+        <div style="margin-bottom: 14px;">
+            <h1 style="margin: 0; font-size: 2.1rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.5px;">Market Terminal — NSE Workstation</h1>
+            <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.95rem;">Multi-Timeframe Charting • Technical Overlays • Level 2 Depth • Instant Paper Execution</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 1. Instrument & Chart Controls Bar
+    c1, c2, c3, c4, c5 = st.columns([1.8, 1, 1, 1, 1.2])
     with c1:
-        selected_symbol = st.selectbox("Search Instrument Watchlist", list(INSTRUMENT_CATALOG.keys()))
+        selected_symbol = st.selectbox("Instrument Watchlist", list(INSTRUMENT_CATALOG.keys()))
     with c2:
         selected_tf = st.selectbox("Timeframe", ["1m", "5m", "15m", "1h", "1d"], index=4)
     with c3:
-        chart_bars = st.slider("Bar Count", min_value=30, max_value=300, value=120)
+        chart_type = st.selectbox("Chart Style", ["Candlestick", "Line", "Area"])
     with c4:
+        chart_bars = st.slider("Bar Count", min_value=30, max_value=300, value=120)
+    with c5:
         inst_info = INSTRUMENT_CATALOG[selected_symbol]
         st.markdown(
-            f"**Segment:** `{inst_info['segment']}`<br>**Lot:** `{inst_info['lot_size']}` • **Tick:** `₹{inst_info['tick_size']}`",
+            f"""
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 12px; font-size: 0.8rem;">
+                <span class="badge-safe"><span class="pulse-dot-green"></span>FRESH (24ms)</span><br>
+                <b>Lot:</b> {inst_info['lot_size']} • <b>Tick:</b> ₹{inst_info['tick_size']}
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
-    # Indicator Controls
-    with st.expander("🛠️ Advanced Technical Indicators & Subplots", expanded=True):
+    # 2. Indicator Toolbar Expander
+    with st.expander("🛠️ Technical Overlays & Oscillators Toolbar", expanded=False):
         ic1, ic2, ic3, ic4 = st.columns(4)
         with ic1:
             show_ema = st.checkbox("EMA (20 / 50 / 200)", value=True)
@@ -49,13 +73,12 @@ def render_terminal_page() -> None:
             show_rsi = st.checkbox("RSI (14) Oscillator", value=True)
             show_macd = st.checkbox("MACD (12, 26, 9)", value=True)
 
-    # Generate Chart Data
+    # 3. Chart Rendering
     df = generate_sample_market_data(n_bars=chart_bars, symbol=selected_symbol, base_price=inst_info["base"])
-
-    # Render Interactive Plotly Chart
     fig = create_candlestick_chart(
         df,
         symbol=selected_symbol,
+        chart_type=chart_type,
         show_volume=show_vol,
         show_ema=show_ema,
         show_bb=show_bb,
@@ -67,12 +90,14 @@ def render_terminal_page() -> None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Technical Indicator Real-Time Quant Matrix
+    # 4. Quantitative Indicators Matrix
     from app.indicators import indicator_pipeline
+
     feat_df = indicator_pipeline.compute_all_features(df, symbol=selected_symbol, timeframe=selected_tf)
     last_row = feat_df.iloc[-1]
+    curr_price = float(df["close"].iloc[-1])
 
-    st.subheader("Quantitative Indicator Snapshot")
+    st.subheader("Quantitative Indicator Matrix")
     m1, m2, m3, m4, m5, m6 = st.columns(6)
     with m1:
         st.metric("RSI (14)", f"{last_row.get('rsi_14', 50.0):.1f}")
@@ -89,42 +114,60 @@ def render_terminal_page() -> None:
 
     st.write("")
 
-    # Depth & Multi-timeframe Summary
-    col_depth, col_stats = st.columns([1, 1])
+    # 5. Level 2 Market Depth & Quick Order Entry Ticket
+    col_depth, col_order = st.columns([1, 1.2])
+
     with col_depth:
         st.subheader("Simulated Level 2 Order Depth (Bid / Ask)")
-        curr_price = float(df["close"].iloc[-1])
         tick = inst_info["tick_size"]
-
         bids = [
-            {"Orders": 12, "Bid Qty": 1500, "Bid Price": round(curr_price - i * tick, 2)}
+            {"Orders": 12 + i * 2, "Bid Qty": 1500 - i * 150, "Bid Price": round(curr_price - i * tick, 2)}
             for i in range(1, 6)
         ]
         asks = [
-            {"Ask Price": round(curr_price + i * tick, 2), "Ask Qty": 1250, "Orders": 8}
+            {"Ask Price": round(curr_price + i * tick, 2), "Ask Qty": 1250 - i * 100, "Orders": 8 + i * 2}
             for i in range(1, 6)
         ]
         depth_df = pd.DataFrame(bids)
         depth_df["Ask Price"] = [a["Ask Price"] for a in asks]
         depth_df["Ask Qty"] = [a["Ask Qty"] for a in asks]
         depth_df["Ask Orders"] = [a["Orders"] for a in asks]
-
         st.dataframe(depth_df, use_container_width=True, hide_index=True)
 
-    with col_stats:
-        st.subheader("Price & Session Statistics")
-        high_24h = float(df["high"].max())
-        low_24h = float(df["low"].min())
-        chg = float(df["close"].iloc[-1] - df["open"].iloc[0])
-        pct_chg = (chg / df["open"].iloc[0]) * 100
+    with col_order:
+        st.subheader("⚡ Quick Paper Order Entry")
+        with st.form("quick_terminal_order_form"):
+            t_side = st.radio("Side", ["BUY", "SELL"], horizontal=True)
+            o_c1, o_c2 = st.columns(2)
+            with o_c1:
+                t_qty = st.number_input("Quantity", min_value=1, max_value=10000, value=inst_info["lot_size"], step=inst_info["lot_size"])
+            with o_c2:
+                t_type = st.selectbox("Order Type", ["MARKET", "LIMIT"])
+            t_price = st.number_input("Limit Price (₹)", min_value=0.0, value=curr_price, step=0.5) if t_type == "LIMIT" else curr_price
+            
+            submit_quick_order = st.form_submit_button(f"Submit Paper {t_side} Order", type="primary", use_container_width=True)
 
-        sc1, sc2, sc3 = st.columns(3)
-        with sc1:
-            st.metric("Last Price", f"₹{curr_price:,.2f}", delta=f"{pct_chg:+.2f}%")
-        with sc2:
-            st.metric("Period High", f"₹{high_24h:,.2f}")
-        with sc3:
-            st.metric("Period Low", f"₹{low_24h:,.2f}")
-
-        st.caption("⚠️ Data Notice: Market Terminal is connected to validated local and simulated NSE feeds. Timestamps are synchronized in UTC / IST.")
-
+        if submit_quick_order:
+            risk_ok, risk_msg = risk_authority.validate_order(
+                symbol=selected_symbol,
+                side=t_side.lower(),
+                quantity=t_qty,
+                price=t_price,
+                current_positions_count=len(paper_broker.positions),
+            )
+            if not risk_ok:
+                st.error(f"Order Rejected by Risk Authority: {risk_msg}")
+            else:
+                try:
+                    order = paper_broker.place_order(
+                        symbol=selected_symbol,
+                        side=t_side.lower(),
+                        quantity=t_qty,
+                        price=t_price if t_type == "LIMIT" else 0.0,
+                        order_type=t_type,
+                        strategy_id="terminal_quick",
+                    )
+                    st.success(f"Paper Order #{order.order_id[:8]} executed @ ₹{order.fill_price:,.2f}!")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Execution Error: {exc}")

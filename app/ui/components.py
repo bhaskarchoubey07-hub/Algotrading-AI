@@ -1,3 +1,5 @@
+"""Reusable UI Components, Institutional Dark Theme, and Interactive Charting for AlgoTrade AI."""
+
 from datetime import datetime, timezone
 from typing import Any
 import numpy as np
@@ -5,10 +7,13 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
 
 
 def apply_custom_theme() -> None:
-    """Inject institutional-grade dark financial terminal styling with typography and micro-animations."""
+    """Inject institutional-grade dark financial terminal styling with typography, design tokens, and micro-animations."""
     st.markdown(
         """
         <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,30 +21,46 @@ def apply_custom_theme() -> None:
         <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
         <style>
+            :root {
+                --bg-base: #080d1a;
+                --bg-surface: #0f172a;
+                --bg-card: #111827;
+                --border-subtle: rgba(255, 255, 255, 0.08);
+                --border-focus: rgba(56, 189, 248, 0.4);
+                --accent-primary: #38bdf8;
+                --accent-cyan: #00f0ff;
+                --color-gain: #10b981;
+                --color-loss: #f43f5e;
+                --color-warning: #f59e0b;
+                --text-muted: #94a3b8;
+                --text-main: #f8fafc;
+            }
+
             /* Base Theme & Typography */
-            html, body, [class*="css"], .stMarkdown, .stText, p, span {
+            html, body, [class*="css"], .stMarkdown, .stText, p, span, div {
                 font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             }
-            code, pre, .mono, [data-testid="stMetricValue"] {
+            code, pre, .mono, [data-testid="stMetricValue"], .tabular-nums {
                 font-family: 'JetBrains Mono', monospace !important;
+                font-feature-settings: "tnum" 1, "zero" 1 !important;
             }
             .main {
                 background: radial-gradient(circle at 50% 0%, #111827 0%, #080d1a 60%, #030712 100%);
                 color: #f1f5f9;
             }
             .block-container {
-                padding-top: 1.5rem !important;
+                padding-top: 1.0rem !important;
                 padding-bottom: 2.5rem !important;
                 max-width: 96% !important;
             }
 
-            /* Sleek Ticker Tape */
+            /* Ticker Tape */
             .ticker-tape {
                 background: linear-gradient(90deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
                 border: 1px solid rgba(56, 189, 248, 0.2);
                 border-radius: 8px;
                 padding: 8px 16px;
-                margin-bottom: 16px;
+                margin-bottom: 12px;
                 display: flex;
                 overflow-x: auto;
                 white-space: nowrap;
@@ -53,26 +74,26 @@ def apply_custom_theme() -> None:
                 align-items: center;
                 gap: 8px;
             }
-            .ticker-pos { color: #34d399; font-weight: 600; }
-            .ticker-neg { color: #f87171; font-weight: 600; }
+            .ticker-pos { color: #10b981; font-weight: 600; }
+            .ticker-neg { color: #f43f5e; font-weight: 600; }
             .ticker-name { color: #94a3b8; font-weight: 600; }
 
             /* Institutional Metric Cards */
             .stMetric {
-                background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+                background: linear-gradient(135deg, rgba(17, 24, 39, 0.92) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
                 padding: 16px 20px !important;
                 border-radius: 12px !important;
-                border: 1px solid rgba(255, 255, 255, 0.07) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
                 box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
                 backdrop-filter: blur(8px);
                 transition: transform 0.2s ease, border-color 0.2s ease;
             }
             .stMetric:hover {
                 transform: translateY(-2px);
-                border-color: rgba(56, 189, 248, 0.3) !important;
+                border-color: rgba(56, 189, 248, 0.4) !important;
             }
             .stMetric label {
-                font-size: 0.82rem !important;
+                font-size: 0.80rem !important;
                 color: #94a3b8 !important;
                 font-weight: 600 !important;
                 text-transform: uppercase;
@@ -128,6 +149,18 @@ def apply_custom_theme() -> None:
                 align-items: center;
                 gap: 6px;
                 box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+            }
+            .badge-warn {
+                background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+                color: white;
+                padding: 5px 12px;
+                border-radius: 20px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
             }
             .pulse-dot-green {
                 width: 8px;
@@ -191,6 +224,27 @@ def apply_custom_theme() -> None:
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
 
+            /* Global Header Bar */
+            .global-status-header {
+                background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 10px;
+                padding: 10px 16px;
+                margin-bottom: 16px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .global-status-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.82rem;
+                font-weight: 600;
+            }
+
             /* Custom scrollbar */
             ::-webkit-scrollbar { width: 6px; height: 6px; }
             ::-webkit-scrollbar-track { background: #080d1a; }
@@ -221,9 +275,62 @@ def render_live_ticker_tape() -> None:
     )
 
 
+def render_global_header() -> None:
+    """Renders the top institutional global status bar with real-time connectivity and session metadata."""
+    from app.brokers.dhan import dhan_broker
+    from app.config import settings
+    from app.database import db_repo
+    from app.risk import risk_authority
+
+    ist_now = datetime.now(IST)
+    m_open, _ = risk_authority.is_market_open(ist_now)
+    d_status = dhan_broker.get_connection_status()
+    db_stat = db_repo.get_database_status()
+
+    session_badge = '<span class="pulse-dot-green"></span> NSE: OPEN' if m_open else '● NSE: CLOSED'
+    broker_badge = 'DHAN: CONNECTED' if d_status['is_connected'] else 'DHAN: SANDBOX'
+    db_badge = f"DB: {db_stat['mode'].upper()}"
+
+    st.markdown(
+        f"""
+        <div class="global-status-header">
+            <div class="global-status-item" style="color: {'#34d399' if m_open else '#94a3b8'};">
+                {session_badge} <span style="color: #64748b; margin-left: 4px;">({ist_now.strftime('%H:%M:%S IST')})</span>
+            </div>
+            <div class="global-status-item">
+                <span class="badge-paper"><span class="pulse-dot-blue"></span>PAPER TRADING ONLY</span>
+            </div>
+            <div class="global-status-item" style="color: #cbd5e1;">
+                🛡️ {broker_badge} • {db_badge}
+            </div>
+            <div class="global-status-item">
+                {'<span class="badge-live"><span class="pulse-dot-red"></span>KILL-SWITCH TRIPPED</span>' if risk_authority.kill_switch_active else '<span class="badge-safe"><span class="pulse-dot-green"></span>RISK ENGINE ARMED</span>'}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_onboarding_guide() -> None:
+    """Renders smart onboarding walkthrough for beginners with key concepts."""
+    with st.expander("🎓 Smart Onboarding Guide: Learn How AlgoTrade AI Works", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("#### 1. Real-Time Market Feeds")
+            st.caption("We collect NSE cash, futures, and options quotes via DhanHQ and local historical tick feeds. Every price is verified for staleness (<60s) before any signal can execute.")
+        with c2:
+            st.markdown("#### 2. Quantitative Strategies")
+            st.caption("18 independent mathematical models (Trend, Breakout, Mean Reversion, Options Spreads, ML Regimes) generate buy/sell proposals. Proposals must pass statistical validation and the active market regime filter.")
+        with c3:
+            st.markdown("#### 3. Zero-Risk Paper Trading")
+            st.caption("The platform operates exclusively in **Paper Trading Mode**. Real-money broker order placement is strictly gated. Simulated execution includes realistic slippage, STT, and exchange transaction fees.")
+
+
 def create_candlestick_chart(
     df: pd.DataFrame,
     symbol: str = "NIFTY",
+    chart_type: str = "Candlestick",
     show_volume: bool = True,
     show_ema: bool = True,
     show_bb: bool = False,
@@ -233,7 +340,7 @@ def create_candlestick_chart(
     show_rsi: bool = False,
     show_macd: bool = False,
 ) -> go.Figure:
-    """Render high-performance Plotly candlestick chart with full technical indicator overlays and subplots."""
+    """Render high-performance Plotly financial chart with full technical indicator overlays and subplots."""
     from app.indicators import (
         calculate_bollinger_bands,
         calculate_donchian_channels,
@@ -271,21 +378,34 @@ def create_candlestick_chart(
         row_heights=row_heights,
     )
 
-    # 1. Main Candlestick Trace
-    fig.add_trace(
-        go.Candlestick(
-            x=df["timestamp"],
-            open=df["open"],
-            high=df["high"],
-            low=df["low"],
-            close=df["close"],
-            name="Price",
-            increasing=dict(line=dict(color="#10b981", width=1), fillcolor="#10b981"),
-            decreasing=dict(line=dict(color="#f43f5e", width=1), fillcolor="#f43f5e"),
-        ),
-        row=1,
-        col=1,
-    )
+    # Main Price Trace (Candlestick, Line, or Area)
+    if chart_type == "Line":
+        fig.add_trace(
+            go.Scatter(x=df["timestamp"], y=df["close"], mode="lines", line=dict(color="#38bdf8", width=2), name="Close Price"),
+            row=1,
+            col=1,
+        )
+    elif chart_type == "Area":
+        fig.add_trace(
+            go.Scatter(x=df["timestamp"], y=df["close"], mode="lines", fill="tozeroy", fillcolor="rgba(56, 189, 248, 0.15)", line=dict(color="#38bdf8", width=2), name="Close Price"),
+            row=1,
+            col=1,
+        )
+    else:
+        fig.add_trace(
+            go.Candlestick(
+                x=df["timestamp"],
+                open=df["open"],
+                high=df["high"],
+                low=df["low"],
+                close=df["close"],
+                name="Price",
+                increasing=dict(line=dict(color="#10b981", width=1), fillcolor="#10b981"),
+                decreasing=dict(line=dict(color="#f43f5e", width=1), fillcolor="#f43f5e"),
+            ),
+            row=1,
+            col=1,
+        )
 
     # Overlays on Row 1 (Price)
     c = df["close"]
@@ -310,9 +430,8 @@ def create_candlestick_chart(
         fig.add_trace(go.Scatter(x=df["timestamp"], y=bb.lower, line=dict(color="rgba(148, 163, 184, 0.45)", width=1, dash="dot"), name="BB Lower"), row=1, col=1)
 
     if show_supertrend and len(df) >= 15:
-        st = calculate_supertrend(h, l, c, atr_period=10, multiplier=3.0)
-        st_colors = ["#10b981" if d == 1 else "#f43f5e" for d in st.direction]
-        fig.add_trace(go.Scatter(x=df["timestamp"], y=st.supertrend, mode="lines", line=dict(color="#a855f7", width=1.8), name="Supertrend (10,3)"), row=1, col=1)
+        st_res = calculate_supertrend(h, l, c, atr_period=10, multiplier=3.0)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=st_res.supertrend, mode="lines", line=dict(color="#a855f7", width=1.8), name="Supertrend (10,3)"), row=1, col=1)
 
     if show_vwap:
         vwap = calculate_vwap(h, l, c, df.get("volume", pd.Series(1000, index=df.index)), timestamp=df.get("timestamp"))
@@ -364,7 +483,6 @@ def create_candlestick_chart(
         hovermode="x unified",
     )
     return fig
-
 
 
 def generate_sample_market_data(n_bars: int = 150, symbol: str = "NIFTY", base_price: float = 24500.0) -> pd.DataFrame:

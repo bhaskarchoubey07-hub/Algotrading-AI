@@ -14,9 +14,12 @@ from app.adaptive import (
 )
 from app.models import MarketRegime
 from app.strategies import STRATEGIES
+from app.ui.components import render_global_header
 
 
 def render_adaptive_page() -> None:
+    render_global_header()
+
     st.title("Adaptive Strategy Center — Self-Evaluating Quant Intelligence")
     st.caption("Autonomous Strategy Lifecycle Management • Deterioration Diagnostics • Dynamic Regime Weighting")
 

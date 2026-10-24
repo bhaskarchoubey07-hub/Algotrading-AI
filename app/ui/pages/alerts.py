@@ -2,9 +2,12 @@ import pandas as pd
 import streamlit as st
 from app.alerts.manager import alert_manager
 from app.models import AlertCategory, AlertSeverity
+from app.ui.components import render_global_header
 
 
 def render_alerts_page() -> None:
+    render_global_header()
+
     st.title("Alert & Notification Center")
     st.caption("Real-Time Event Stream • Multi-Channel Dispatch (In-App, Telegram, Email) • Acknowledgment")
 

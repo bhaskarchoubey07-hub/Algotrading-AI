@@ -84,6 +84,17 @@ else:
 
 st.sidebar.markdown("---")
 
+# Experience Level Mode
+exp_mode = st.sidebar.radio(
+    "Interface Mode",
+    ["Beginner Mode", "Advanced Mode"],
+    index=0 if "Beginner" in st.session_state.get("ui_experience_level", "Beginner Mode") else 1,
+    help="Beginner mode includes guided builders and explanations. Advanced mode exposes deep quantitative analytics.",
+)
+st.session_state["ui_experience_level"] = exp_mode
+
+st.sidebar.markdown("---")
+
 from app.ui.pages.adaptive import render_adaptive_page
 
 PAGES = {

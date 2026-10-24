@@ -1,14 +1,30 @@
+"""Paper Trading Workstation & Simulated Broker Execution."""
+
+from datetime import datetime
 import pandas as pd
 import streamlit as st
 from app.alerts.manager import alert_manager
 from app.models import AlertCategory, AlertSeverity
 from app.paper import paper_broker
 from app.risk import risk_authority
+from app.ui.components import render_global_header
 
 
 def render_paper_trading_page() -> None:
-    st.title("Paper Trading Workstation — Simulated Broker")
-    st.caption("Realistic Order Execution • Spread & Slippage Modeling • Transaction Cost Accounting")
+    render_global_header()
+
+    st.markdown(
+        """
+        <div style="margin-bottom: 16px;">
+            <div class="badge-paper" style="font-size: 0.85rem; padding: 6px 14px; margin-bottom: 8px;">
+                <span class="pulse-dot-blue"></span> PAPER TRADING — SIMULATED EXECUTION ENFORCED
+            </div>
+            <h1 style="margin: 0; font-size: 2.1rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.5px;">Paper Trading Workstation</h1>
+            <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.95rem;">Auditable Simulated Orders • Realistic Slippage & Brokerage • Position Tracking & Margin Accounting</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     summary = paper_broker.get_portfolio_summary()
     c1, c2, c3, c4 = st.columns(4)
@@ -24,23 +40,22 @@ def render_paper_trading_page() -> None:
     st.markdown("---")
 
     # Order Placement Ticket & Active Positions
-    left_ticket, right_positions = st.columns([1, 2])
+    left_ticket, right_positions = st.columns([1, 1.8])
 
     with left_ticket:
-        st.subheader("Manual Order Ticket")
+        st.subheader("Manual Paper Order Ticket")
         with st.form("manual_paper_order_form"):
             sym = st.selectbox("Symbol", ["RELIANCE", "TCS", "HDFCBANK", "INFY", "TATAMOTORS", "NIFTY 50", "BANKNIFTY"])
             side = st.radio("Side", ["BUY", "SELL"], horizontal=True)
             qty = st.number_input("Quantity", min_value=1, max_value=50000, value=10, step=1)
             order_type = st.selectbox("Order Type", ["MARKET", "LIMIT", "STOP_LOSS"])
-            limit_price = st.number_input("Price (₹)", min_value=0.0, value=2800.0, step=0.5) if order_type != "MARKET" else 0.0
+            limit_price = st.number_input("Limit Price (₹)", min_value=0.0, value=2800.0, step=0.5) if order_type != "MARKET" else 0.0
             sl_price = st.number_input("Optional Stop Loss (₹)", min_value=0.0, value=0.0, step=0.5)
             tp_price = st.number_input("Optional Target (₹)", min_value=0.0, value=0.0, step=0.5)
 
-            submit_order = st.form_submit_button("Submit Paper Order", type="primary")
+            submit_order = st.form_submit_button("Submit Paper Order", type="primary", use_container_width=True)
 
         if submit_order:
-            # Risk check
             pos_count = len(paper_broker.positions)
             ref_p = limit_price if limit_price > 0 else (2800.0 if "RELIANCE" in sym else 500.0)
             risk_ok, risk_msg = risk_authority.validate_order(
@@ -95,7 +110,7 @@ def render_paper_trading_page() -> None:
                     color = "green" if pnl >= 0 else "red"
                     st.markdown(f":{color}[**₹{pnl:+,.2f}**]")
                 with p_col4:
-                    if st.button("Close", key=f"close_{p['symbol']}"):
+                    if st.button("Close", key=f"close_paper_{p['symbol']}"):
                         paper_broker.close_position(p["symbol"])
                         st.success(f"Position {p['symbol']} closed.")
                         st.rerun()
