@@ -8,3 +8,4 @@ htmlcov/
 *.db
 algotrade_local.db
 *.egg-info/
+paper_trading_state.json
