@@ -9,7 +9,7 @@ if str(ROOT_DIR) not in sys.path:
 from app.ui.components import apply_custom_theme, render_live_ticker_tape
 from app.ui.pages.settings import render_settings_page
 
-st.set_page_config(page_title="Settings & Audit — AlgoTrade AI", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="Settings and Audit — AlgoTrade AI", page_icon="⚙️", layout="wide")
 apply_custom_theme()
 render_live_ticker_tape()
 render_settings_page()

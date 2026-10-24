@@ -1,0 +1,37 @@
+//@version=6
+strategy("AlgoTrade AI — EMA 200 Trend Filter [v6]", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Inputs
+ema_period = input.int(200, "EMA Period", minval=20, maxval=500)
+pullback_bars = input.int(3, "Pullback Threshold Bars", minval=1, maxval=10)
+risk_reward = input.float(2.0, "Risk/Reward Ratio", minval=1.0, maxval=5.0)
+passphrase = input.string("your_webhook_secret_here", "AlgoTrade Secret Passphrase")
+
+// Indicators
+ema200 = ta.ema(close, ema_period)
+atr14 = ta.atr(14)
+
+// Entry Conditions (strictly completed bars, zero lookahead)
+is_bullish = close > ema200 and close[1] <= ema200
+is_bearish = close < ema200 and close[1] >= ema200
+
+// Execution & Alert JSON Generation
+if is_bullish
+    stop_level = close - (atr14 * 2.0)
+    target_level = close + (atr14 * 2.0 * risk_reward)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=stop_level, limit=target_level)
+
+    alert_json = str.format('{{\n  "event_id": "{0}_{1}_{2}",\n  "strategy_id": "ema200_macd_trend",\n  "strategy_version": "1.0.0",\n  "symbol": "{3}",\n  "exchange": "NSE",\n  "timeframe": "{4}",\n  "signal_type": "entry",\n  "direction": "long",\n  "timestamp": "{5}",\n  "reference_price": {6},\n  "suggested_stop": {7},\n  "suggested_target": {8},\n  "passphrase": "{9}",\n  "rationale": "Bullish EMA 200 crossover"\n}}', syminfo.ticker, timeframe.period, str.tostring(time), syminfo.ticker, timeframe.period, str.tostring(time), str.tostring(close), str.tostring(stop_level), str.tostring(target_level), passphrase)
+    alert(alert_json, alert.freq_once_per_bar_close)
+
+if is_bearish
+    stop_level = close + (atr14 * 2.0)
+    target_level = close - (atr14 * 2.0 * risk_reward)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=stop_level, limit=target_level)
+
+    alert_json = str.format('{{\n  "event_id": "{0}_{1}_{2}",\n  "strategy_id": "ema200_macd_trend",\n  "strategy_version": "1.0.0",\n  "symbol": "{3}",\n  "exchange": "NSE",\n  "timeframe": "{4}",\n  "signal_type": "entry",\n  "direction": "short",\n  "timestamp": "{5}",\n  "reference_price": {6},\n  "suggested_stop": {7},\n  "suggested_target": {8},\n  "passphrase": "{9}",\n  "rationale": "Bearish EMA 200 crossover"\n}}', syminfo.ticker, timeframe.period, str.tostring(time), syminfo.ticker, timeframe.period, str.tostring(time), str.tostring(close), str.tostring(stop_level), str.tostring(target_level), passphrase)
+    alert(alert_json, alert.freq_once_per_bar_close)
+
+plot(ema200, "EMA 200", color=color.purple, linewidth=2)

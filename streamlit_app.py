@@ -91,19 +91,22 @@ else:
 
 st.sidebar.markdown("---")
 
+from app.ui.pages.adaptive import render_adaptive_page
+
 PAGES = {
     "1. Overview": render_overview_page,
     "2. Market Terminal": render_terminal_page,
-    "3. Strategy Registry": render_strategies_page,
-    "4. Ensemble Monitor": render_ensemble_page,
-    "5. Backtesting Laboratory": render_backtest_page,
-    "6. Paper Trading": render_paper_trading_page,
-    "7. Portfolio & Positions": render_portfolio_page,
-    "8. Options Analytics": render_options_page,
-    "9. Alert Center": render_alerts_page,
-    "10. Risk Center": render_risk_page,
-    "11. Integrations": render_integrations_page,
-    "12. Settings & Audit": render_settings_page,
+    "3. Strategy Laboratory": render_strategies_page,
+    "4. Backtesting Laboratory": render_backtest_page,
+    "5. Paper Trading": render_paper_trading_page,
+    "6. Portfolio Analytics": render_portfolio_page,
+    "7. Adaptive Strategy Center": render_adaptive_page,
+    "8. Ensemble Monitor": render_ensemble_page,
+    "9. Options Analytics": render_options_page,
+    "10. Alert Center": render_alerts_page,
+    "11. Risk Center": render_risk_page,
+    "12. Integrations": render_integrations_page,
+    "13. Settings and Audit": render_settings_page,
 }
 
 selected_page = st.sidebar.radio("Navigation", list(PAGES.keys()))
@@ -113,3 +116,4 @@ st.sidebar.caption("© 2026 AlgoTrade AI • Financial Risk Engineering • SEBI
 
 # Render selected page
 PAGES[selected_page]()
+

@@ -1,0 +1,41 @@
+//@version=6
+strategy("AlgoTrade AI — Bollinger Squeeze Breakout [v6]", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+bb_len = input.int(20, "BB Length")
+bb_mult = input.float(2.0, "BB StdDev")
+kc_len = input.int(20, "Keltner Length")
+kc_mult = input.float(1.5, "Keltner Multiplier")
+passphrase = input.string("your_webhook_secret_here", "AlgoTrade Secret Passphrase")
+
+// Bollinger Bands
+basis = ta.sma(close, bb_len)
+dev = bb_mult * ta.stdev(close, bb_len)
+upper_bb = basis + dev
+lower_bb = basis - dev
+
+// Keltner Channels
+kc_ma = ta.sma(close, kc_len)
+kc_range = ta.atr(kc_len) * kc_mult
+upper_kc = kc_ma + kc_range
+lower_kc = kc_ma - kc_range
+
+// Squeeze Condition: Bollinger Bands inside Keltner Channels
+is_squeeze = (lower_bb > lower_kc) and (upper_bb < upper_kc)
+
+// Breakout Condition
+long_breakout = ta.crossover(close, upper_bb) and not is_squeeze and is_squeeze[1]
+short_breakout = ta.crossunder(close, lower_bb) and not is_squeeze and is_squeeze[1]
+
+if long_breakout
+    strategy.entry("Long", strategy.long)
+    alert_json = str.format('{{\n  "event_id": "{0}_{1}_{2}",\n  "strategy_id": "bollinger_squeeze_breakout",\n  "strategy_version": "1.0.0",\n  "symbol": "{3}",\n  "exchange": "NSE",\n  "timeframe": "{4}",\n  "signal_type": "entry",\n  "direction": "long",\n  "timestamp": "{5}",\n  "reference_price": {6},\n  "suggested_stop": {7},\n  "passphrase": "{8}",\n  "rationale": "Bollinger squeeze expansion breakout up"\n}}', syminfo.ticker, timeframe.period, str.tostring(time), syminfo.ticker, timeframe.period, str.tostring(time), str.tostring(close), str.tostring(basis), passphrase)
+    alert(alert_json, alert.freq_once_per_bar_close)
+
+if short_breakout
+    strategy.entry("Short", strategy.short)
+    alert_json = str.format('{{\n  "event_id": "{0}_{1}_{2}",\n  "strategy_id": "bollinger_squeeze_breakout",\n  "strategy_version": "1.0.0",\n  "symbol": "{3}",\n  "exchange": "NSE",\n  "timeframe": "{4}",\n  "signal_type": "entry",\n  "direction": "short",\n  "timestamp": "{5}",\n  "reference_price": {6},\n  "suggested_stop": {7},\n  "passphrase": "{8}",\n  "rationale": "Bollinger squeeze expansion breakdown down"\n}}', syminfo.ticker, timeframe.period, str.tostring(time), syminfo.ticker, timeframe.period, str.tostring(time), str.tostring(close), str.tostring(basis), passphrase)
+    alert(alert_json, alert.freq_once_per_bar_close)
+
+plot(upper_bb, "BB Upper", color=color.aqua)
+plot(basis, "BB Mid", color=color.gray)
+plot(lower_bb, "BB Lower", color=color.aqua)
