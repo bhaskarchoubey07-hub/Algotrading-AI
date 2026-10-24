@@ -33,6 +33,7 @@ class RiskConfig:
     max_open_positions: int = 10
     tick_size: float = 0.05
     enforce_market_hours: bool = False  # False in backtest/dev, True in production live gate
+    margin_requirement_index_futures: float = 0.15  # 15% SPAN+Exposure margin for index/equity futures
 
 
 def calculate_quantity(equity: float, entry: float, stop: float, config: RiskConfig = RiskConfig()) -> int:
@@ -61,6 +62,12 @@ class RiskAuthority:
         self.circuit_breaker_tripped = False
         self.events: list[RiskEvent] = []
         self._last_order_timestamps: list[float] = []
+
+    def sync_equity_with_broker(self, equity: float) -> None:
+        """Synchronize current equity with broker portfolio value."""
+        if equity > 0:
+            self.current_equity = equity
+            self.peak_equity = max(self.peak_equity, equity)
 
     def log_event(self, event_type: str, severity: AlertSeverity, message: str, details: dict[str, Any] | None = None) -> RiskEvent:
         event = RiskEvent(
@@ -145,7 +152,7 @@ class RiskAuthority:
         quantity: int,
         price: float,
         current_positions_count: int,
-        segment: TradingSegment = TradingSegment.EQUITY_CASH,
+        segment: TradingSegment | str = TradingSegment.EQUITY_CASH,
         lot_size: int = 1,
     ) -> tuple[bool, str]:
         """Full pre-trade risk inspection."""
@@ -164,10 +171,22 @@ class RiskAuthority:
         if current_positions_count >= self.config.max_open_positions:
             return False, f"Order rejected: Maximum open positions ({self.config.max_open_positions}) reached."
 
-        # Maximum position value constraint
+        # Maximum position value constraint with derivative/index margin calculation
         order_value = price * quantity
         max_position_val = self.current_equity * self.config.max_position_value_fraction
-        if order_value > max_position_val:
+
+        # Check if instrument is an index / derivative margin instrument
+        is_derivative = (
+            segment in {TradingSegment.INDEX, TradingSegment.INDEX_FUTURES, TradingSegment.EQUITY_FUTURES, "INDEX", "INDEX_FUTURES", "EQUITY_FUTURES"}
+            or symbol.endswith("_FUT")
+            or symbol in {"NIFTY 50", "BANKNIFTY", "FINNIFTY"}
+        )
+        margin_rate = self.config.margin_requirement_index_futures if is_derivative else 1.0
+        effective_value = order_value * margin_rate
+
+        if effective_value > max_position_val:
+            if is_derivative:
+                return False, f"Order rejected: Order required margin ₹{effective_value:,.2f} (notional ₹{order_value:,.2f}) exceeds max allowed ₹{max_position_val:,.2f}."
             return False, f"Order rejected: Order notional value ₹{order_value:,.2f} exceeds max allowed ₹{max_position_val:,.2f}."
 
         if self.config.enforce_market_hours:

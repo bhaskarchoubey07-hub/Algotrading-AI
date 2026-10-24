@@ -2,6 +2,7 @@
 
 import pandas as pd
 import streamlit as st
+from app.models import TradingSegment
 from app.paper import paper_broker
 from app.risk import risk_authority
 from app.ui.components import (
@@ -14,6 +15,8 @@ INSTRUMENT_CATALOG = {
     "NIFTY 50": {"segment": "INDEX", "base": 24650.0, "lot_size": 25, "tick_size": 0.05},
     "BANKNIFTY": {"segment": "INDEX", "base": 51200.0, "lot_size": 15, "tick_size": 0.05},
     "FINNIFTY": {"segment": "INDEX", "base": 23410.0, "lot_size": 40, "tick_size": 0.05},
+    "NIFTYBEES": {"segment": "EQUITY_CASH", "base": 265.0, "lot_size": 1, "tick_size": 0.01},
+    "BANKBEES": {"segment": "EQUITY_CASH", "base": 520.0, "lot_size": 1, "tick_size": 0.01},
     "RELIANCE": {"segment": "EQUITY_CASH", "base": 2840.0, "lot_size": 1, "tick_size": 0.05},
     "TCS": {"segment": "EQUITY_CASH", "base": 4120.0, "lot_size": 1, "tick_size": 0.05},
     "HDFCBANK": {"segment": "EQUITY_CASH", "base": 1680.0, "lot_size": 1, "tick_size": 0.05},
@@ -144,16 +147,43 @@ def render_terminal_page() -> None:
             with o_c2:
                 t_type = st.selectbox("Order Type", ["MARKET", "LIMIT"])
             t_price = st.number_input("Limit Price (₹)", min_value=0.0, value=curr_price, step=0.5) if t_type == "LIMIT" else curr_price
-            
+
+            # Dynamic margin and notional calculation
+            is_derivative = (
+                inst_info.get("segment") in {"INDEX", "INDEX_FUTURES", "EQUITY_FUTURES"}
+                or selected_symbol in {"NIFTY 50", "BANKNIFTY", "FINNIFTY"}
+            )
+            est_notional = t_price * t_qty
+            est_margin = est_notional * 0.15 if is_derivative else est_notional
+
+            st.markdown(
+                f"""
+                <div style="background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 6px 10px; margin: 8px 0; font-size: 0.8rem; color: #cbd5e1;">
+                    <b>Est. Notional:</b> ₹{est_notional:,.2f} &nbsp;|&nbsp; 
+                    <b>Req. Margin:</b> <span style="color: {'#38bdf8' if is_derivative else '#10b981'}; font-weight: 600;">₹{est_margin:,.2f}</span>
+                    <span style="color: #94a3b8; font-size: 0.75rem;">({'15% Derivative Margin' if is_derivative else '100% Cash Delivery'})</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
             submit_quick_order = st.form_submit_button(f"Submit Paper {t_side} Order", type="primary", use_container_width=True)
 
         if submit_quick_order:
+            summary = paper_broker.get_portfolio_summary()
+            risk_authority.sync_equity_with_broker(summary["total_equity"])
+
+            seg_str = inst_info.get("segment", "EQUITY_CASH")
+            seg_enum = TradingSegment(seg_str) if seg_str in TradingSegment.__members__ else TradingSegment.INDEX
+
             risk_ok, risk_msg = risk_authority.validate_order(
                 symbol=selected_symbol,
                 side=t_side.lower(),
                 quantity=t_qty,
                 price=t_price,
                 current_positions_count=len(paper_broker.positions),
+                segment=seg_enum,
+                lot_size=inst_info["lot_size"],
             )
             if not risk_ok:
                 st.error(f"Order Rejected by Risk Authority: {risk_msg}")
@@ -165,6 +195,7 @@ def render_terminal_page() -> None:
                         quantity=t_qty,
                         price=t_price if t_type == "LIMIT" else 0.0,
                         order_type=t_type,
+                        segment=seg_str,
                         strategy_id="terminal_quick",
                     )
                     st.success(f"Paper Order #{order.order_id[:8]} executed @ ₹{order.fill_price:,.2f}!")

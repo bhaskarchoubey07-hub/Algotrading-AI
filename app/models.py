@@ -57,6 +57,7 @@ class OrderStatus(str, Enum):
 
 
 class TradingSegment(str, Enum):
+    INDEX = "INDEX"
     EQUITY_CASH = "EQUITY_CASH"
     EQUITY_FUTURES = "EQUITY_FUTURES"
     INDEX_FUTURES = "INDEX_FUTURES"

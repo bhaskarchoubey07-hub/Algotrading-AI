@@ -74,9 +74,14 @@ def test_risk_authority_lot_size_validation():
     assert "multiple of lot size" in msg.lower()
 
     ok, msg = auth.validate_order("NIFTY_FUT", "buy", 50, 24500.0, 0, lot_size=25)
-    # 50 * 24500 = 1,225,000 exceeds 10% notional cap of 1,000,000 equity
+    # 50 * 24500 = 1,225,000 exceeds 10% notional cap of 1,000,000 equity (even with 15% margin = 183,750 > 100,000)
     assert not ok
     assert "exceeds max allowed" in msg.lower()
+
+    # 1 lot of NIFTY (25 * 24500 = 612,500 * 0.15 = 91,875 <= 100,000) passes derivative margin
+    ok, msg = auth.validate_order("NIFTY_FUT", "buy", 25, 24500.0, 0, segment=TradingSegment.INDEX_FUTURES, lot_size=25)
+    assert ok
+    assert "passed all risk authority checks" in msg.lower()
 
 
 def test_risk_authority_market_hours_check():
