@@ -156,10 +156,48 @@ def tradingview_webhook(payload: TradingViewAlertPayload) -> dict:
     return tv_handler.process_webhook(payload)
 
 
-# Dhan Broker Status
+# Dhan Broker Status & Read-Only APIs
 @app.get("/integrations/dhan/status")
 def dhan_status() -> dict:
     return dhan_broker.get_connection_status()
+
+
+@app.get("/integrations/dhan/funds")
+def dhan_funds() -> dict:
+    return dhan_broker.get_fund_limits().to_dict()
+
+
+@app.get("/integrations/dhan/positions")
+def dhan_positions() -> list[dict]:
+    return dhan_broker.get_positions()
+
+
+@app.get("/integrations/dhan/holdings")
+def dhan_holdings() -> list[dict]:
+    return dhan_broker.get_holdings()
+
+
+@app.get("/integrations/dhan/quote/{symbol}")
+def dhan_quote(symbol: str, exchange_segment: str = "NSE_EQ") -> dict:
+    client = getattr(dhan_broker, "client", None)
+    if client:
+        return client.get_quote(symbol, exchange_segment).to_dict()
+    return {"symbol": symbol, "error": "Broker client not available"}
+
+
+@app.get("/integrations/dhan/options/chain/{symbol}")
+def dhan_option_chain(symbol: str) -> dict:
+    client = getattr(dhan_broker, "client", None)
+    if client:
+        oc = client.options.get_option_chain(symbol)
+        return {
+            "underlying_symbol": oc.underlying_symbol,
+            "underlying_price": oc.underlying_price,
+            "expiry_date": oc.expiry_date,
+            "strikes_count": len(oc.strikes),
+            "timestamp": oc.timestamp,
+        }
+    return {"symbol": symbol, "error": "Options manager not available"}
 
 
 # Risk & Kill-Switch Controls
