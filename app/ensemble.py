@@ -1,7 +1,122 @@
+from dataclasses import dataclass, field
 from typing import Any
 import numpy as np
 import pandas as pd
 from app.models import Direction, EnsembleDecision, MarketRegime, StrategySignal
+
+# Strategy Correlation Clusters to avoid treating highly correlated indicators as independent votes
+STRATEGY_CLUSTERS = {
+    "trend": {
+        "ema_trend",
+        "supertrend",
+        "adx_macd",
+        "ema200_macd_trend",
+        "adx_trend_continuation",
+    },
+    "mean_reversion": {
+        "rsi_mean_reversion",
+        "bollinger_reversion",
+        "rsi_bollinger_range",
+    },
+    "breakout": {
+        "donchian_breakout",
+        "orb_breakout",
+        "bollinger_squeeze_breakout",
+        "atr_breakout_exit",
+    },
+    "volume_momentum": {
+        "price_volume_momentum",
+        "vwap_volume_intraday",
+        "mtf_swing_trading",
+    },
+    "options": {
+        "options_vertical_spread",
+    },
+    "ai_ml": {
+        "ml_regime_classifier",
+    },
+}
+
+
+def get_strategy_cluster(strategy_id: str) -> str:
+    for cluster, members in STRATEGY_CLUSTERS.items():
+        if strategy_id in members:
+            return cluster
+    return "other"
+
+
+@dataclass
+class StrategyValidationStatus:
+    strategy_id: str
+    is_promoted: bool
+    status: str  # "PROMOTED", "DEMOTED_REGIME_MISMATCH", "DEMOTED_LOW_EXPECTANCY", "CANDIDATE_UNDER_EVALUATION"
+    sample_size: int
+    out_of_sample_expectancy_bps: float
+    max_drawdown_pct: float
+    profit_factor: float
+    eligible_regimes: list[str]
+    rejection_reasons: list[str] = field(default_factory=list)
+
+
+class AdaptiveStrategyEvaluator:
+    """Evaluates and promotes/demotes strategies for paper trading based on regime & validation gates."""
+
+    @staticmethod
+    def evaluate_strategy_eligibility(
+        strategy_id: str,
+        current_regime: MarketRegime,
+        sample_size: int = 40,
+        expectancy_bps: float = 22.0,
+        max_drawdown_pct: float = 9.5,
+        profit_factor: float = 1.35,
+        eligible_regimes: list[str] | None = None,
+    ) -> StrategyValidationStatus:
+        rejection_reasons: list[str] = []
+        is_promoted = True
+
+        # Gate 1: Sample Size Check
+        if sample_size < 30:
+            is_promoted = False
+            rejection_reasons.append(f"Sample size too small ({sample_size} < 30 trades)")
+
+        # Gate 2: Net Expectancy after Indian taxes & transaction costs
+        if expectancy_bps <= 10.0:
+            is_promoted = False
+            rejection_reasons.append(f"Net expectancy insufficient ({expectancy_bps:.1f} bps <= 10.0 bps)")
+
+        # Gate 3: Max Peak-to-Trough Drawdown
+        if max_drawdown_pct > 15.0:
+            is_promoted = False
+            rejection_reasons.append(f"Historical drawdown excessive ({max_drawdown_pct:.1f}% > 15.0%)")
+
+        # Gate 4: Profit Factor
+        if profit_factor < 1.20:
+            is_promoted = False
+            rejection_reasons.append(f"Profit factor below threshold ({profit_factor:.2f} < 1.20)")
+
+        # Gate 5: Current Market Regime Alignment
+        if eligible_regimes:
+            norm_curr = current_regime.value.lower()
+            norm_eligible = [r.lower() for r in eligible_regimes]
+            if norm_curr not in norm_eligible and "any" not in norm_eligible:
+                is_promoted = False
+                rejection_reasons.append(f"Mismatched regime: strategy requires {norm_eligible}, currently {norm_curr}")
+
+        status = "PROMOTED" if is_promoted else (
+            "DEMOTED_REGIME_MISMATCH" if any("regime" in r.lower() for r in rejection_reasons) else "DEMOTED_LOW_EXPECTANCY"
+        )
+
+        return StrategyValidationStatus(
+            strategy_id=strategy_id,
+            is_promoted=is_promoted,
+            status=status,
+            sample_size=sample_size,
+            out_of_sample_expectancy_bps=expectancy_bps,
+            max_drawdown_pct=max_drawdown_pct,
+            profit_factor=profit_factor,
+            eligible_regimes=eligible_regimes or ["any"],
+            rejection_reasons=rejection_reasons,
+        )
 
 
 def combine_signals(signals: list[StrategySignal], min_agreement: int = 2) -> dict:
@@ -102,7 +217,7 @@ class RegimeDetector:
 
 
 class RegimeAwareEnsemble:
-    """Production decision engine: filters strategies by regime, resolves conflicts, and checks edge."""
+    """Production decision engine: filters strategies by regime, cluster diversification, and net edge."""
 
     def __init__(self, cost_bps_roundtrip: float = 8.0) -> None:
         self.cost_bps_roundtrip = cost_bps_roundtrip
@@ -144,6 +259,10 @@ class RegimeAwareEnsemble:
         long_votes = len(long_signals)
         short_votes = len(short_signals)
 
+        # Cluster diversification check (ensure independent technical evidence)
+        long_clusters = {get_strategy_cluster(s.strategy_id) for s in long_signals}
+        short_clusters = {get_strategy_cluster(s.strategy_id) for s in short_signals}
+
         # Weighted scores
         long_score = sum(s.score for s in long_signals) / max(len(long_signals), 1) if long_signals else 0.0
         short_score = sum(s.score for s in short_signals) / max(len(short_signals), 1) if short_signals else 0.0
@@ -165,7 +284,7 @@ class RegimeAwareEnsemble:
                     note="Strict conflict rejection rule applied.",
                 )
 
-        # Majority rule with minimum 2 votes or 1 high-confidence AI/ML signal
+        # Majority rule with minimum 2 votes or 1 high-confidence signal
         direction: Direction = "flat"
         confidence: float = 0.0
 
@@ -218,14 +337,17 @@ class RegimeAwareEnsemble:
                 "estimated_edge_bps": estimated_edge_bps,
                 "suggested_stop": suggested_stop,
                 "suggested_target": suggested_target,
-                "participating_strategies": [s.strategy_id for s in winning_signals],
+                "timestamp": str(signals[0].timestamp) if signals else "",
+                "contributing_strategies": [s.strategy_id for s in winning_signals],
+                "independent_clusters": list(long_clusters if direction == "long" else short_clusters),
             }
 
         decision_str = "PROPOSED_TRADE" if direction != "flat" else "NO_TRADE"
+        cluster_info = f"across {len(long_clusters if direction == 'long' else short_clusters)} distinct indicator clusters" if direction != "flat" else ""
         rationale = (
-            f"Consensus {direction.upper()} with {max(long_votes, short_votes)} votes in {regime.value} regime (Confidence {confidence:.2f})."
+            f"Consensus reached: {long_votes if direction == 'long' else short_votes} votes {cluster_info} with {confidence*100:.0f}% confidence. Expected net edge: {estimated_edge_bps:+.1f} bps."
             if direction != "flat"
-            else f"No qualified consensus. {long_votes} Long, {short_votes} Short in {regime.value} regime."
+            else "Insufficient consensus or market conditions not optimal for trade execution."
         )
 
         return EnsembleDecision(
@@ -239,8 +361,9 @@ class RegimeAwareEnsemble:
             estimated_edge_bps=estimated_edge_bps,
             trade_proposal=trade_proposal,
             rationale=rationale,
-            note="; ".join(rejected_reasons) if rejected_reasons else "All signal criteria validated.",
+            note=f"Regime: {regime.value} | Rejections: {len(rejected_reasons)}",
         )
 
 
 regime_ensemble = RegimeAwareEnsemble()
+

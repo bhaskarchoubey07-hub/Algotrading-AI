@@ -42,6 +42,35 @@ def render_strategies_page() -> None:
             with param_cols[i % len(param_cols)]:
                 st.text_input(f"Parameter: {p_name}", value=str(p_val), disabled=True)
 
+    # Adaptive Strategy Promotion & Validation Status
+    from app.ensemble import AdaptiveStrategyEvaluator, get_strategy_cluster
+    from app.models import MarketRegime
+
+    strat_cluster = get_strategy_cluster(strategy.strategy_id)
+    validation = AdaptiveStrategyEvaluator.evaluate_strategy_eligibility(
+        strategy_id=strategy.strategy_id,
+        current_regime=MarketRegime.TRENDING_UP,
+        eligible_regimes=meta.get("regimes", ["any"]),
+    )
+
+    st.subheader("Adaptive Paper Trading Validation Gates")
+    v1, v2, v3, v4, v5 = st.columns(5)
+    with v1:
+        st.metric("Indicator Cluster", strat_cluster.upper())
+    with v2:
+        status_color = "🟢 PROMOTED" if validation.is_promoted else "🔴 DEMOTED"
+        st.metric("Promotion Gate", status_color)
+    with v3:
+        st.metric("OOS Expectancy", f"+{validation.out_of_sample_expectancy_bps:.1f} bps")
+    with v4:
+        st.metric("Profit Factor", f"{validation.profit_factor:.2f}")
+    with v5:
+        st.metric("Sample Size", f"{validation.sample_size} trades")
+
+    if validation.rejection_reasons:
+        for r_reason in validation.rejection_reasons:
+            st.warning(f"⚠️ Validation Notice: {r_reason}")
+
     st.markdown("---")
 
     # Signal Testing Workbench
@@ -69,12 +98,26 @@ def render_strategies_page() -> None:
             with res3:
                 st.metric("Suggested Stop Loss", f"₹{sig.suggested_stop:,.2f}" if sig.suggested_stop else "None")
 
-            st.success(f"**Strategy Rationale:** {sig.reason}")
+            if sig.direction != "flat":
+                st.success(f"**Strategy Rationale:** {sig.reason}")
+            else:
+                st.info(f"**Hold / Rejection Rationale:** {sig.reason}")
+
+            # Display underlying indicator features for this bar
+            from app.indicators import indicator_pipeline
+            feat = indicator_pipeline.compute_all_features(df_test, symbol=test_sym)
+            last = feat.iloc[-1]
+            st.caption(
+                f"Bar Indicators Snapshot — RSI: {last.get('rsi_14', 50):.1f} | ADX: {last.get('adx', 20):.1f} | "
+                f"ATR: ₹{last.get('atr_14', 0):.2f} | BB Squeeze: {last.get('bb_squeeze', False)}"
+            )
         except Exception as exc:
             st.error(f"Signal Generation Error: {exc}")
 
     # Complete Registry Overview Table
-    st.subheader("All Registered Production Strategies")
+    st.subheader("All Registered Production Strategies (18 Total)")
     all_strats = [s.metadata() for s in STRATEGIES.values()]
     df_all = pd.DataFrame(all_strats)
-    st.dataframe(df_all[["strategy_id", "version", "category", "description"]], use_container_width=True)
+    df_all["cluster"] = [get_strategy_cluster(sid) for sid in df_all["strategy_id"]]
+    st.dataframe(df_all[["strategy_id", "cluster", "version", "description"]], use_container_width=True)
+

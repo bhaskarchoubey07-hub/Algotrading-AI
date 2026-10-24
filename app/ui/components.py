@@ -227,20 +227,51 @@ def create_candlestick_chart(
     show_volume: bool = True,
     show_ema: bool = True,
     show_bb: bool = False,
+    show_supertrend: bool = False,
+    show_vwap: bool = False,
+    show_donchian: bool = False,
+    show_rsi: bool = False,
+    show_macd: bool = False,
 ) -> go.Figure:
-    """Render high-performance Plotly candlestick chart with volume and indicator overlays."""
-    rows = 2 if show_volume else 1
-    row_heights = [0.75, 0.25] if show_volume else [1.0]
+    """Render high-performance Plotly candlestick chart with full technical indicator overlays and subplots."""
+    from app.indicators import (
+        calculate_bollinger_bands,
+        calculate_donchian_channels,
+        calculate_ema,
+        calculate_macd,
+        calculate_rsi,
+        calculate_supertrend,
+        calculate_vwap,
+    )
+
+    # Determine subplots
+    extra_rows = 0
+    if show_volume:
+        extra_rows += 1
+    if show_rsi:
+        extra_rows += 1
+    if show_macd:
+        extra_rows += 1
+
+    total_rows = 1 + extra_rows
+    if total_rows == 1:
+        row_heights = [1.0]
+    elif total_rows == 2:
+        row_heights = [0.75, 0.25]
+    elif total_rows == 3:
+        row_heights = [0.60, 0.20, 0.20]
+    else:
+        row_heights = [0.55, 0.15, 0.15, 0.15]
 
     fig = make_subplots(
-        rows=rows,
+        rows=total_rows,
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.03,
         row_heights=row_heights,
     )
 
-    # Candlestick Trace
+    # 1. Main Candlestick Trace
     fig.add_trace(
         go.Candlestick(
             x=df["timestamp"],
@@ -256,51 +287,72 @@ def create_candlestick_chart(
         col=1,
     )
 
-    # EMA Overlays
-    if show_ema and len(df) >= 20:
-        ema20 = df["close"].ewm(span=20, adjust=False).mean()
-        fig.add_trace(
-            go.Scatter(x=df["timestamp"], y=ema20, line=dict(color="#38bdf8", width=1.5), name="EMA 20"),
-            row=1,
-            col=1,
-        )
-    if show_ema and len(df) >= 50:
-        ema50 = df["close"].ewm(span=50, adjust=False).mean()
-        fig.add_trace(
-            go.Scatter(x=df["timestamp"], y=ema50, line=dict(color="#f59e0b", width=1.5), name="EMA 50"),
-            row=1,
-            col=1,
-        )
+    # Overlays on Row 1 (Price)
+    c = df["close"]
+    h = df["high"]
+    l = df["low"]
 
-    # Bollinger Bands
+    if show_ema:
+        if len(df) >= 20:
+            ema20 = calculate_ema(c, period=20)
+            fig.add_trace(go.Scatter(x=df["timestamp"], y=ema20, line=dict(color="#38bdf8", width=1.5), name="EMA 20"), row=1, col=1)
+        if len(df) >= 50:
+            ema50 = calculate_ema(c, period=50)
+            fig.add_trace(go.Scatter(x=df["timestamp"], y=ema50, line=dict(color="#f59e0b", width=1.5), name="EMA 50"), row=1, col=1)
+        if len(df) >= 100:
+            ema200 = calculate_ema(c, period=min(200, len(df) - 5))
+            fig.add_trace(go.Scatter(x=df["timestamp"], y=ema200, line=dict(color="#ec4899", width=2.0), name="EMA 200"), row=1, col=1)
+
     if show_bb and len(df) >= 20:
-        sma = df["close"].rolling(20).mean()
-        std = df["close"].rolling(20).std()
-        upper = sma + (2 * std)
-        lower = sma - (2 * std)
-        fig.add_trace(
-            go.Scatter(x=df["timestamp"], y=upper, line=dict(color="rgba(148, 163, 184, 0.5)", width=1, dash="dot"), name="BB Upper"),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(x=df["timestamp"], y=lower, line=dict(color="rgba(148, 163, 184, 0.5)", width=1, dash="dot"), name="BB Lower"),
-            row=1,
-            col=1,
-        )
+        bb = calculate_bollinger_bands(c, period=20, num_std=2.0)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=bb.upper, line=dict(color="rgba(148, 163, 184, 0.45)", width=1, dash="dot"), name="BB Upper"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=bb.middle, line=dict(color="rgba(148, 163, 184, 0.35)", width=1), name="BB Middle"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=bb.lower, line=dict(color="rgba(148, 163, 184, 0.45)", width=1, dash="dot"), name="BB Lower"), row=1, col=1)
 
-    # Volume Bars
+    if show_supertrend and len(df) >= 15:
+        st = calculate_supertrend(h, l, c, atr_period=10, multiplier=3.0)
+        st_colors = ["#10b981" if d == 1 else "#f43f5e" for d in st.direction]
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=st.supertrend, mode="lines", line=dict(color="#a855f7", width=1.8), name="Supertrend (10,3)"), row=1, col=1)
+
+    if show_vwap:
+        vwap = calculate_vwap(h, l, c, df.get("volume", pd.Series(1000, index=df.index)), timestamp=df.get("timestamp"))
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=vwap, line=dict(color="#eab308", width=1.8, dash="dash"), name="VWAP"), row=1, col=1)
+
+    if show_donchian and len(df) >= 20:
+        dc = calculate_donchian_channels(h, l, period=20)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=dc.upper, line=dict(color="rgba(56, 189, 248, 0.4)", width=1, dash="longdash"), name="Donchian Up"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=dc.lower, line=dict(color="rgba(56, 189, 248, 0.4)", width=1, dash="longdash"), name="Donchian Down"), row=1, col=1)
+
+    curr_row = 2
+
+    # Subplot: Volume
     if show_volume and "volume" in df.columns:
-        colors = ["rgba(16, 185, 129, 0.6)" if c >= o else "rgba(244, 63, 94, 0.6)" for c, o in zip(df["close"], df["open"])]
-        fig.add_trace(
-            go.Bar(x=df["timestamp"], y=df["volume"], marker_color=colors, name="Volume"),
-            row=2,
-            col=1,
-        )
+        colors = ["rgba(16, 185, 129, 0.6)" if cl >= op else "rgba(244, 63, 94, 0.6)" for cl, op in zip(df["close"], df["open"])]
+        fig.add_trace(go.Bar(x=df["timestamp"], y=df["volume"], marker_color=colors, name="Volume"), row=curr_row, col=1)
+        fig.update_yaxes(title_text="Vol", row=curr_row, col=1)
+        curr_row += 1
+
+    # Subplot: RSI
+    if show_rsi and len(df) >= 15:
+        rsi = calculate_rsi(c, period=14)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=rsi, line=dict(color="#38bdf8", width=1.5), name="RSI (14)"), row=curr_row, col=1)
+        fig.add_hline(y=70, line_dash="dash", line_color="rgba(244, 63, 94, 0.5)", row=curr_row, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="rgba(16, 185, 129, 0.5)", row=curr_row, col=1)
+        fig.update_yaxes(title_text="RSI", range=[0, 100], row=curr_row, col=1)
+        curr_row += 1
+
+    # Subplot: MACD
+    if show_macd and len(df) >= 26:
+        macd_res = calculate_macd(c)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=macd_res.macd, line=dict(color="#38bdf8", width=1.2), name="MACD"), row=curr_row, col=1)
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=macd_res.signal, line=dict(color="#f59e0b", width=1.2), name="Signal"), row=curr_row, col=1)
+        hist_colors = ["#10b981" if val >= 0 else "#f43f5e" for val in macd_res.histogram]
+        fig.add_trace(go.Bar(x=df["timestamp"], y=macd_res.histogram, marker_color=hist_colors, name="Histogram"), row=curr_row, col=1)
+        fig.update_yaxes(title_text="MACD", row=curr_row, col=1)
 
     fig.update_layout(
         title=dict(
-            text=f"<b>{symbol}</b> — Quantitative Charting",
+            text=f"<b>{symbol}</b> — Institutional Quantitative Charting",
             font=dict(size=18, color="#f8fafc", family="Plus Jakarta Sans"),
         ),
         template="plotly_dark",
@@ -312,6 +364,7 @@ def create_candlestick_chart(
         hovermode="x unified",
     )
     return fig
+
 
 
 def generate_sample_market_data(n_bars: int = 150, symbol: str = "NIFTY", base_price: float = 24500.0) -> pd.DataFrame:
