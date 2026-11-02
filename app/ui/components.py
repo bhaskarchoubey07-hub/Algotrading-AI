@@ -9,6 +9,8 @@ from plotly.subplots import make_subplots
 import streamlit as st
 from zoneinfo import ZoneInfo
 
+from app.services.health import integration_health
+
 IST = ZoneInfo("Asia/Kolkata")
 
 
@@ -81,29 +83,55 @@ def apply_custom_theme() -> None:
             /* Institutional Metric Cards */
             .stMetric {
                 background: linear-gradient(135deg, rgba(17, 24, 39, 0.92) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
-                padding: 16px 20px !important;
-                border-radius: 12px !important;
+                padding: 12px 16px !important;
+                border-radius: 10px !important;
                 border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
                 backdrop-filter: blur(8px);
                 transition: transform 0.2s ease, border-color 0.2s ease;
+                min-height: 86px !important;
             }
             .stMetric:hover {
                 transform: translateY(-2px);
                 border-color: rgba(56, 189, 248, 0.4) !important;
             }
             .stMetric label {
-                font-size: 0.80rem !important;
+                font-size: 0.74rem !important;
                 color: #94a3b8 !important;
                 font-weight: 600 !important;
                 text-transform: uppercase;
-                letter-spacing: 0.8px;
+                letter-spacing: 0.6px;
+                margin-bottom: 2px !important;
             }
             .stMetric [data-testid="stMetricValue"] {
-                font-size: 1.65rem !important;
+                font-size: clamp(1.15rem, 1.35vw, 1.45rem) !important;
                 font-weight: 700 !important;
                 color: #f8fafc !important;
                 letter-spacing: -0.5px;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .stMetric [data-testid="stMetricDelta"] {
+                font-size: 0.76rem !important;
+                font-weight: 600 !important;
+            }
+
+            /* Expander styling to prevent title overlap */
+            .streamlit-expanderHeader, [data-testid="stExpander"] details summary {
+                background: rgba(15, 23, 42, 0.65) !important;
+                border: 1px solid rgba(255, 255, 255, 0.07) !important;
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                color: #cbd5e1 !important;
+                padding: 10px 14px !important;
+                line-height: 1.4 !important;
+            }
+            [data-testid="stExpander"] details {
+                border: 1px solid rgba(255, 255, 255, 0.06) !important;
+                border-radius: 8px !important;
+                margin-bottom: 12px !important;
+                overflow: visible !important;
             }
 
             /* Status Badges with Pulsing Animation */
@@ -115,35 +143,35 @@ def apply_custom_theme() -> None:
             .badge-live {
                 background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
                 color: white;
-                padding: 5px 12px;
-                border-radius: 20px;
-                font-size: 0.75rem;
+                padding: 4px 10px;
+                border-radius: 16px;
+                font-size: 0.74rem;
                 font-weight: 700;
-                letter-spacing: 0.8px;
+                letter-spacing: 0.6px;
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
-                box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+                box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
             }
             .badge-paper {
                 background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
                 color: white;
-                padding: 5px 12px;
-                border-radius: 20px;
-                font-size: 0.75rem;
+                padding: 4px 10px;
+                border-radius: 16px;
+                font-size: 0.74rem;
                 font-weight: 700;
-                letter-spacing: 0.8px;
+                letter-spacing: 0.6px;
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
-                box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+                box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
             }
             .badge-safe {
                 background: linear-gradient(135deg, #059669 0%, #065f46 100%);
                 color: white;
-                padding: 5px 12px;
-                border-radius: 20px;
-                font-size: 0.75rem;
+                padding: 4px 10px;
+                border-radius: 16px;
+                font-size: 0.74rem;
                 font-weight: 600;
                 display: inline-flex;
                 align-items: center;
@@ -153,34 +181,46 @@ def apply_custom_theme() -> None:
             .badge-warn {
                 background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
                 color: white;
-                padding: 5px 12px;
-                border-radius: 20px;
-                font-size: 0.75rem;
+                padding: 4px 10px;
+                border-radius: 16px;
+                font-size: 0.74rem;
                 font-weight: 600;
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
                 box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
             }
+            .badge-neutral {
+                background: rgba(30, 41, 59, 0.9);
+                color: #94a3b8;
+                border: 1px solid rgba(255,255,255,0.08);
+                padding: 4px 10px;
+                border-radius: 16px;
+                font-size: 0.74rem;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
             .pulse-dot-green {
-                width: 8px;
-                height: 8px;
+                width: 7px;
+                height: 7px;
                 background-color: #34d399;
                 border-radius: 50%;
                 display: inline-block;
                 animation: pulse-dot 1.5s infinite ease-in-out;
             }
             .pulse-dot-blue {
-                width: 8px;
-                height: 8px;
+                width: 7px;
+                height: 7px;
                 background-color: #60a5fa;
                 border-radius: 50%;
                 display: inline-block;
                 animation: pulse-dot 1.5s infinite ease-in-out;
             }
             .pulse-dot-red {
-                width: 8px;
-                height: 8px;
+                width: 7px;
+                height: 7px;
                 background-color: #f87171;
                 border-radius: 50%;
                 display: inline-block;
@@ -229,19 +269,19 @@ def apply_custom_theme() -> None:
                 background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%);
                 border: 1px solid rgba(255, 255, 255, 0.08);
                 border-radius: 10px;
-                padding: 10px 16px;
+                padding: 8px 14px;
                 margin-bottom: 16px;
                 display: flex;
                 flex-wrap: wrap;
                 align-items: center;
                 justify-content: space-between;
-                gap: 12px;
+                gap: 10px;
             }
             .global-status-item {
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                font-size: 0.82rem;
+                font-size: 0.80rem;
                 font-weight: 600;
             }
 
@@ -257,18 +297,43 @@ def apply_custom_theme() -> None:
 
 
 def render_live_ticker_tape() -> None:
-    """Render an institutional market ticker bar across top indices and bellwethers."""
+    """Render an institutional market ticker bar across top indices and bellwethers using real live quotes."""
+    from app.services.market_data import market_data_service
+    from app.risk import risk_authority
+
+    ist_now = datetime.now(IST)
+    m_open, _ = risk_authority.is_market_open(ist_now)
+    tag = "LIVE" if m_open else "CLOSE"
+
+    quotes = market_data_service.get_ticker_tape_quotes()
+
+    items_html = []
+    for q in quotes:
+        sym = q["symbol"]
+        price_fmt = f"{q['last_price']:,.2f}"
+        chg = q["change"]
+        chg_pct = q["change_pct"]
+        is_pos = chg >= 0
+        cls = "ticker-pos" if is_pos else "ticker-neg"
+        arrow = "▲" if is_pos else "▼"
+        sign = "+" if is_pos else ""
+        feed_tag = f'<span style="font-size:0.68rem; color:#64748b; margin-left:2px;">[{tag}]</span>'
+
+        items_html.append(
+            f'<div class="ticker-item">'
+            f'<span class="ticker-name">{sym}</span> '
+            f'<span style="color:#f8fafc; font-weight:700;">{price_fmt}</span> '
+            f'<span class="{cls}">{sign}{chg:.2f} ({sign}{chg_pct:.2f}%) {arrow}</span> '
+            f'{feed_tag}'
+            f'</div>'
+        )
+
+    ticker_content = "".join(items_html)
+
     st.markdown(
-        """
+        f"""
         <div class="ticker-tape">
-            <div class="ticker-item"><span class="ticker-name">NIFTY 50</span> <span>24,654.20</span> <span class="ticker-pos">+112.40 (+0.46%) ▲</span></div>
-            <div class="ticker-item"><span class="ticker-name">BANKNIFTY</span> <span>51,210.80</span> <span class="ticker-pos">+315.60 (+0.62%) ▲</span></div>
-            <div class="ticker-item"><span class="ticker-name">FINNIFTY</span> <span>23,410.15</span> <span class="ticker-pos">+88.50 (+0.38%) ▲</span></div>
-            <div class="ticker-item"><span class="ticker-name">INDIA VIX</span> <span>12.85</span> <span class="ticker-neg">-0.16 (-1.23%) ▼</span></div>
-            <div class="ticker-item"><span class="ticker-name">RELIANCE</span> <span>2,842.50</span> <span class="ticker-pos">+22.80 (+0.81%) ▲</span></div>
-            <div class="ticker-item"><span class="ticker-name">HDFCBANK</span> <span>1,682.40</span> <span class="ticker-pos">+8.20 (+0.49%) ▲</span></div>
-            <div class="ticker-item"><span class="ticker-name">TCS</span> <span>4,124.00</span> <span class="ticker-neg">-12.50 (-0.30%) ▼</span></div>
-            <div class="ticker-item"><span class="ticker-name">INFY</span> <span>1,742.10</span> <span class="ticker-pos">+14.60 (+0.85%) ▲</span></div>
+            {ticker_content}
         </div>
         """,
         unsafe_allow_html=True,
@@ -277,19 +342,42 @@ def render_live_ticker_tape() -> None:
 
 def render_global_header() -> None:
     """Renders the top institutional global status bar with real-time connectivity and session metadata."""
-    from app.brokers.dhan import dhan_broker
-    from app.config import settings
-    from app.database import db_repo
     from app.risk import risk_authority
 
     ist_now = datetime.now(IST)
-    m_open, _ = risk_authority.is_market_open(ist_now)
-    d_status = dhan_broker.get_connection_status()
-    db_stat = db_repo.get_database_status()
+    m_open, m_msg = risk_authority.is_market_open(ist_now)
+    health = integration_health.get_system_health()
 
-    session_badge = '<span class="pulse-dot-green"></span> NSE: OPEN' if m_open else '● NSE: CLOSED'
-    broker_badge = 'DHAN: CONNECTED' if d_status['is_connected'] else 'DHAN: SANDBOX'
-    db_badge = f"DB: {db_stat['mode'].upper()}"
+    sb_info = health["supabase"]
+    dhan_info = health["dhan"]
+    risk_info = health["risk_engine"]
+
+    session_badge = '<span class="pulse-dot-green"></span> NSE: SESSION OPEN' if m_open else '● NSE: SESSION CLOSED'
+
+    # Supabase badge
+    if sb_info["status"] == "SUPABASE_CONNECTED":
+        db_badge = f'<span class="badge-safe"><span class="pulse-dot-green"></span>{sb_info["badge"]}</span>'
+    elif sb_info["status"] == "UNCONFIGURED_SQLITE_ACTIVE":
+        db_badge = f'<span class="badge-neutral">💾 {sb_info["badge"]}</span>'
+    else:
+        db_badge = f'<span class="badge-warn">⚠️ {sb_info["badge"]}</span>'
+
+    # Dhan badge
+    if dhan_info["status"] == "DHAN_CONNECTED":
+        dhan_badge = f'<span class="badge-safe"><span class="pulse-dot-green"></span>{dhan_info["badge"]}</span>'
+    elif dhan_info["status"] == "DHAN_MOCK_SANDBOX":
+        dhan_badge = f'<span class="badge-neutral">🛡️ {dhan_info["badge"]}</span>'
+    else:
+        dhan_badge = f'<span class="badge-warn">⚠️ {dhan_info["badge"]}</span>'
+
+    # Risk badge
+    if not risk_info["is_armed"]:
+        risk_badge = '<span class="badge-live"><span class="pulse-dot-red"></span>KILL-SWITCH TRIPPED</span>'
+    else:
+        risk_badge = '<span class="badge-safe"><span class="pulse-dot-green"></span>RISK ARMED</span>'
+
+    # Market Data Feed badge
+    feed_badge = '<span class="badge-safe"><span class="pulse-dot-green"></span>REAL NSE FEED</span>'
 
     st.markdown(
         f"""
@@ -298,13 +386,19 @@ def render_global_header() -> None:
                 {session_badge} <span style="color: #64748b; margin-left: 4px;">({ist_now.strftime('%H:%M:%S IST')})</span>
             </div>
             <div class="global-status-item">
-                <span class="badge-paper"><span class="pulse-dot-blue"></span>PAPER TRADING ONLY</span>
-            </div>
-            <div class="global-status-item" style="color: #cbd5e1;">
-                🛡️ {broker_badge} • {db_badge}
+                {feed_badge}
             </div>
             <div class="global-status-item">
-                {'<span class="badge-live"><span class="pulse-dot-red"></span>KILL-SWITCH TRIPPED</span>' if risk_authority.kill_switch_active else '<span class="badge-safe"><span class="pulse-dot-green"></span>RISK ENGINE ARMED</span>'}
+                <span class="badge-paper"><span class="pulse-dot-blue"></span>PAPER TRADING ENFORCED</span>
+            </div>
+            <div class="global-status-item">
+                {dhan_badge}
+            </div>
+            <div class="global-status-item">
+                {db_badge}
+            </div>
+            <div class="global-status-item">
+                {risk_badge}
             </div>
         </div>
         """,
@@ -312,19 +406,79 @@ def render_global_header() -> None:
     )
 
 
+def render_sidebar() -> None:
+    """Renders consistent sidebar across all multi-page entry points."""
+    from app.risk import risk_authority
+
+    st.sidebar.markdown(
+        """
+        <div style="padding: 10px 0 14px 0;">
+            <h2 style="margin: 0; color: #38bdf8; font-weight: 800; font-size: 1.55rem; letter-spacing: -0.5px;">⚡ ALGOTRADE AI</h2>
+            <p style="margin: 3px 0 0 0; color: #94a3b8; font-size: 0.8rem; font-weight: 600;">NSE Quantitative Trading Workstation</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.sidebar.markdown(
+        '<div class="badge-paper" style="width: 100%; justify-content: center; margin-bottom: 12px;">'
+        '<span class="pulse-dot-blue"></span>PAPER TRADING ENFORCED</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Market Status & IST Clock in Sidebar
+    ist_now = datetime.now(IST)
+    m_open, _ = risk_authority.is_market_open(ist_now)
+    m_badge = '<span class="pulse-dot-green"></span> NSE: SESSION OPEN' if m_open else '● NSE: SESSION CLOSED'
+    st.sidebar.markdown(
+        f"""
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+            <div style="color: {'#34d399' if m_open else '#94a3b8'}; font-weight: 600; margin-bottom: 4px;">{m_badge}</div>
+            <div style="color: #cbd5e1;">IST: {ist_now.strftime('%H:%M:%S')} • {ist_now.strftime('%d %b %Y')}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Emergency Kill Switch in Sidebar
+    if risk_authority.kill_switch_active:
+        st.sidebar.error("🚨 KILL-SWITCH TRIPPED")
+        if st.sidebar.button("Reset Kill-Switch", key="sb_comp_reset", use_container_width=True):
+            risk_authority.reset_kill_switch()
+            st.rerun()
+    else:
+        if st.sidebar.button("🚨 Emergency Kill-Switch", key="sb_comp_halt", type="secondary", use_container_width=True):
+            risk_authority.trip_kill_switch("Emergency halt from sidebar")
+            st.rerun()
+
+    st.sidebar.markdown("---")
+
+    # Experience Level Mode
+    exp_mode = st.sidebar.radio(
+        "Interface Mode",
+        ["Beginner Mode", "Advanced Mode"],
+        index=0 if "Beginner" in st.session_state.get("ui_experience_level", "Beginner Mode") else 1,
+        help="Beginner mode includes guided builders and explanations. Advanced mode exposes deep quantitative analytics.",
+    )
+    st.session_state["ui_experience_level"] = exp_mode
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption("© 2026 AlgoTrade AI • Financial Risk Engineering • SEBI / NSE Compliant Architecture")
+
+
 def render_onboarding_guide() -> None:
     """Renders smart onboarding walkthrough for beginners with key concepts."""
     with st.expander("🎓 Smart Onboarding Guide: Learn How AlgoTrade AI Works", expanded=False):
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown("#### 1. Real-Time Market Feeds")
-            st.caption("We collect NSE cash, futures, and options quotes via DhanHQ and local historical tick feeds. Every price is verified for staleness (<60s) before any signal can execute.")
+            st.markdown("#### 1. Market Data Feeds")
+            st.caption("We collect NSE cash, futures, and options quotes via DhanHQ and historical tick feeds. Every price is verified for staleness (<60s) before any signal can execute.")
         with c2:
             st.markdown("#### 2. Quantitative Strategies")
-            st.caption("18 independent mathematical models (Trend, Breakout, Mean Reversion, Options Spreads, ML Regimes) generate buy/sell proposals. Proposals must pass statistical validation and the active market regime filter.")
+            st.caption("18 independent mathematical models (Trend, Breakout, Mean Reversion, Options Spreads, ML Regimes) generate buy/sell proposals with regime gating.")
         with c3:
             st.markdown("#### 3. Zero-Risk Paper Trading")
-            st.caption("The platform operates exclusively in **Paper Trading Mode**. Real-money broker order placement is strictly gated. Simulated execution includes realistic slippage, STT, and exchange transaction fees.")
+            st.caption("The platform operates exclusively in **Paper Trading Mode**. Real-money broker order placement is strictly absent. Execution includes realistic slippage, STT, and exchange charges.")
 
 
 def create_candlestick_chart(
@@ -374,11 +528,11 @@ def create_candlestick_chart(
         rows=total_rows,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.03,
+        vertical_spacing=0.04,
         row_heights=row_heights,
     )
 
-    # Main Price Trace (Candlestick, Line, or Area)
+    # Main Price Trace
     if chart_type == "Line":
         fig.add_trace(
             go.Scatter(x=df["timestamp"], y=df["close"], mode="lines", line=dict(color="#38bdf8", width=2), name="Close Price"),
@@ -469,17 +623,29 @@ def create_candlestick_chart(
         fig.add_trace(go.Bar(x=df["timestamp"], y=macd_res.histogram, marker_color=hist_colors, name="Histogram"), row=curr_row, col=1)
         fig.update_yaxes(title_text="MACD", row=curr_row, col=1)
 
+    chart_height = 420 + (extra_rows * 110)
+
     fig.update_layout(
         title=dict(
             text=f"<b>{symbol}</b> — Institutional Quantitative Charting",
-            font=dict(size=18, color="#f8fafc", family="Plus Jakarta Sans"),
+            font=dict(size=16, color="#f8fafc", family="Plus Jakarta Sans"),
+            x=0.01,
+            y=0.98,
         ),
         template="plotly_dark",
         plot_bgcolor="rgba(11, 15, 25, 0.7)",
         paper_bgcolor="rgba(11, 15, 25, 0)",
         xaxis_rangeslider_visible=False,
-        margin=dict(l=40, r=40, t=50, b=30),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=chart_height,
+        margin=dict(l=45, r=45, t=45, b=60),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.08,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=11, color="#94a3b8"),
+        ),
         hovermode="x unified",
     )
     return fig

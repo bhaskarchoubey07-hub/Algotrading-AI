@@ -125,9 +125,9 @@ class DhanStreamingManager:
         while self._running:
             try:
                 if self._dhan_context is None:
-                    # In simulated / sandbox mode, emit periodic heartbeat ticks
+                    # In simulated / sandbox mode, do not claim live broker connection
                     with self._lock:
-                        self._status.is_connected = True
+                        self._status.is_connected = False
                         self._status.last_heartbeat_time = datetime.now(timezone.utc).isoformat()
                     time.sleep(2.0)
                     continue

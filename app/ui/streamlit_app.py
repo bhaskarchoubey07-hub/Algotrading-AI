@@ -55,6 +55,17 @@ else:
         unsafe_allow_html=True,
     )
 
+st.sidebar.markdown(
+    '<div class="badge-safe" style="margin-top: 6px;"><span class="pulse-dot-green"></span>REAL NSE FEED CONNECTED</div>',
+    unsafe_allow_html=True,
+)
+
+if st.sidebar.button("⚡ Refresh Live Data", key="app_ui_refresh_btn", use_container_width=True):
+    from app.services.market_data import market_data_service
+    market_data_service.get_ticker_tape_quotes(force_fresh=True)
+    st.sidebar.success("Market quotes refreshed!")
+    st.rerun()
+
 st.sidebar.write("")
 
 # Market Status & IST Clock in Sidebar

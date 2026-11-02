@@ -228,3 +228,24 @@ def test_feature_pipeline_determinism(sample_ohlcv: pd.DataFrame):
     assert "ichimoku_tenkan" in df1.columns
     assert "rvol_20" in df1.columns
     assert len(df1) == len(sample_ohlcv)
+
+
+def test_sma_calculation(sample_ohlcv: pd.DataFrame):
+    from app.indicators import calculate_sma
+
+    sma20 = calculate_sma(sample_ohlcv["close"], period=20)
+    assert len(sma20) == len(sample_ohlcv)
+    assert sma20.iloc[:19].isna().all()
+    assert not sma20.iloc[19:].isna().any()
+    expected = sample_ohlcv["close"].iloc[:20].mean()
+    assert pytest.approx(sma20.iloc[19], abs=1e-4) == expected
+
+
+def test_ema200_calculation(sample_ohlcv: pd.DataFrame):
+    from app.indicators import calculate_ema200
+
+    ema = calculate_ema200(sample_ohlcv["close"])
+    assert len(ema) == len(sample_ohlcv)
+    assert ema.iloc[:199].isna().all()
+    assert not ema.iloc[199:].isna().any()
+

@@ -117,6 +117,7 @@ class BrokerQuote:
     volume: int
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     is_stale: bool = False
+    data_source: str = "mock"
     depth: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

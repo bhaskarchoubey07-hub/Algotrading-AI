@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
 from datetime import datetime, time, timezone
+import logging
 from typing import Any
 from zoneinfo import ZoneInfo
+from app.database.supabase_client import db_repo
 from app.models import AlertSeverity, OrderSide, RiskEvent, TradingSegment
 
+logger = logging.getLogger("algotrade.risk")
 IST = ZoneInfo("Asia/Kolkata")
 
 # NSE trading hours: 09:15 to 15:30 IST
@@ -154,22 +157,52 @@ class RiskAuthority:
         current_positions_count: int,
         segment: TradingSegment | str = TradingSegment.EQUITY_CASH,
         lot_size: int = 1,
+        quote_timestamp: str | None = None,
+        current_exposure: float | None = None,
     ) -> tuple[bool, str]:
-        """Full pre-trade risk inspection."""
+        """Full pre-trade risk inspection with rejection audit logging."""
+        def _reject(reason: str, event_type: str = "ORDER_REJECTED") -> tuple[bool, str]:
+            self.log_event(event_type, AlertSeverity.WARNING, reason, {
+                "symbol": symbol,
+                "side": str(side),
+                "quantity": quantity,
+                "price": price,
+            })
+            try:
+                db_repo.save_risk_event(
+                    severity="warning",
+                    event_type=event_type,
+                    message=reason,
+                    details={"symbol": symbol, "side": str(side), "quantity": quantity, "price": price},
+                )
+            except Exception as exc:
+                logger.debug(f"Failed to record risk event in db: {exc}")
+            return False, reason
+
         if self.kill_switch_active:
-            return False, "Order rejected: Emergency kill-switch / circuit-breaker is ACTIVE."
+            return _reject("Order rejected: Emergency kill-switch / circuit-breaker is ACTIVE.", "KILL_SWITCH_BLOCKED")
 
         if quantity <= 0:
-            return False, "Order rejected: Quantity must be strictly positive."
+            return _reject("Order rejected: Quantity must be strictly positive.", "INVALID_QUANTITY")
 
         if price <= 0:
-            return False, "Order rejected: Price must be positive."
+            return _reject("Order rejected: Price must be positive.", "INVALID_PRICE")
 
         if quantity % lot_size != 0:
-            return False, f"Order rejected: Quantity {quantity} is not a multiple of lot size {lot_size}."
+            return _reject(f"Order rejected: Quantity {quantity} is not a multiple of lot size {lot_size}.", "LOT_SIZE_MISMATCH")
 
         if current_positions_count >= self.config.max_open_positions:
-            return False, f"Order rejected: Maximum open positions ({self.config.max_open_positions}) reached."
+            return _reject(f"Order rejected: Maximum open positions ({self.config.max_open_positions}) reached.", "MAX_POSITIONS_BREACH")
+
+        # Data Freshness Check: reject stale quotes (>60 seconds old)
+        if quote_timestamp:
+            try:
+                q_dt = datetime.fromisoformat(quote_timestamp.replace("Z", "+00:00"))
+                age = (datetime.now(timezone.utc) - q_dt).total_seconds()
+                if age > 60.0:
+                    return _reject(f"Order rejected: Market quote is stale ({age:.1f}s > 60s). Entry blocked.", "STALE_DATA_REJECTION")
+            except Exception:
+                pass
 
         # Maximum position value constraint with derivative/index margin calculation
         order_value = price * quantity
@@ -186,13 +219,19 @@ class RiskAuthority:
 
         if effective_value > max_position_val:
             if is_derivative:
-                return False, f"Order rejected: Order required margin ₹{effective_value:,.2f} (notional ₹{order_value:,.2f}) exceeds max allowed ₹{max_position_val:,.2f}."
-            return False, f"Order rejected: Order notional value ₹{order_value:,.2f} exceeds max allowed ₹{max_position_val:,.2f}."
+                return _reject(f"Order rejected: Order required margin ₹{effective_value:,.2f} (notional ₹{order_value:,.2f}) exceeds max allowed ₹{max_position_val:,.2f}.", "MARGIN_LIMIT_BREACH")
+            return _reject(f"Order rejected: Order notional value ₹{order_value:,.2f} exceeds max allowed ₹{max_position_val:,.2f}.", "NOTIONAL_LIMIT_BREACH")
+
+        # Aggregate exposure check
+        if current_exposure is not None:
+            max_aggregate = self.current_equity * 0.95
+            if (current_exposure + effective_value) > max_aggregate:
+                return _reject(f"Order rejected: Aggregate exposure ₹{current_exposure + effective_value:,.2f} exceeds 95% equity cap ₹{max_aggregate:,.2f}.", "AGGREGATE_EXPOSURE_BREACH")
 
         if self.config.enforce_market_hours:
             open_ok, msg = self.is_market_open()
             if not open_ok:
-                return False, f"Order rejected: {msg}"
+                return _reject(f"Order rejected: {msg}", "MARKET_CLOSED")
 
         return True, "Order passed all risk authority checks."
 

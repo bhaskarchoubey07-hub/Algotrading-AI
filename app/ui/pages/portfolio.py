@@ -20,12 +20,21 @@ def render_portfolio_page() -> None:
         unsafe_allow_html=True,
     )
 
+    from app.services.market_data import market_data_service
+    # Update all open positions with live market prices
+    for sym in list(paper_broker.positions.keys()):
+        try:
+            q = market_data_service.get_realtime_quote(sym)
+            paper_broker.update_market_price(sym, float(q["last_price"]))
+        except Exception:
+            pass
+
     summary = paper_broker.get_portfolio_summary()
 
     # Asset Allocation Overview KPI Metrics
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("Total Portfolio Value", f"₹{summary['total_equity']:,.2f}", help="Total simulated portfolio value.")
+        st.metric("Total Portfolio Value", f"₹{summary['total_equity']:,.2f}", delta=f"{summary['day_return_pct']:+.2f}% Day", help="Total simulated portfolio value.")
     with c2:
         st.metric("Cash Balance", f"₹{summary['cash_balance']:,.2f}", help="Available unencumbered cash.")
     with c3:
@@ -61,22 +70,34 @@ def render_portfolio_page() -> None:
         st.plotly_chart(fig_donut, use_container_width=True)
 
     with c_chart2:
-        st.subheader("Quantitative Risk & Statistical Metrics")
-        s1, s2, s3 = st.columns(3)
-        with s1:
-            st.metric("Sharpe Ratio", "1.84", help="Risk-adjusted return over simulated baseline.")
-        with s2:
-            st.metric("Sortino Ratio", "2.41", help="Downside-deviation risk-adjusted performance.")
-        with s3:
-            st.metric("Profit Factor", "1.92", help="Gross winning profits divided by gross losses.")
+        st.subheader("Quantitative Performance & Statistical Metrics")
+        closed_trades = paper_broker.trades
+        if closed_trades:
+            pnls = [t.get("pnl", 0.0) for t in closed_trades]
+            wins = [p for p in pnls if p > 0]
+            losses = [abs(p) for p in pnls if p < 0]
+            total_n = len(pnls)
+            win_rate = (len(wins) / total_n * 100.0) if total_n > 0 else 0.0
+            profit_factor = (sum(wins) / sum(losses)) if sum(losses) > 0 else (99.9 if sum(wins) > 0 else 0.0)
+            avg_trade = sum(pnls) / total_n if total_n > 0 else 0.0
 
-        s4, s5, s6 = st.columns(3)
-        with s4:
-            st.metric("95% Wilson Win Rate", "58.4% - 66.2%", help="Binomial confidence interval bounds.")
-        with s5:
-            st.metric("Net Expectancy", "+14.2 bps / Trade")
-        with s6:
-            st.metric("Calmar Ratio", "2.10")
+            s1, s2, s3 = st.columns(3)
+            with s1:
+                st.metric("Closed Trades", f"{total_n}", help="Total completed round-trip paper trades.")
+            with s2:
+                st.metric("Win Rate", f"{win_rate:.1f}%", help="Percentage of profitable closed trades.")
+            with s3:
+                st.metric("Profit Factor", f"{profit_factor:.2f}", help="Gross profit / gross loss.")
+
+            s4, s5, s6 = st.columns(3)
+            with s4:
+                st.metric("Avg Trade P&L", f"₹{avg_trade:+,.2f}", help="Mean profit/loss per closed trade.")
+            with s5:
+                st.metric("Winning Trades", f"{len(wins)}", help="Total winning trades.")
+            with s6:
+                st.metric("Losing Trades", f"{len(losses)}", help="Total losing trades.")
+        else:
+            st.info("ℹ️ No closed trades recorded yet. Performance metrics (win rate, profit factor, Sharpe) will compute dynamically once paper positions are closed.")
 
     # Positions Breakdown Table
     st.subheader("Current Holdings & Segment Breakdown")

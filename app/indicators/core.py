@@ -90,6 +90,20 @@ def calculate_ema(series: pd.Series, period: int = 200) -> pd.Series:
     return series.ewm(span=period, adjust=False, min_periods=period).mean()
 
 
+def calculate_sma(series: pd.Series, period: int = 20) -> pd.Series:
+    r"""Calculate Simple Moving Average (SMA).
+
+    Formula:
+      SMA_t = (1 / n) * \sum_{i=0}^{n-1} Price_{t-i}
+    """
+    return series.rolling(window=period, min_periods=period).mean()
+
+
+def calculate_ema200(close: pd.Series) -> pd.Series:
+    """Calculate baseline 200-period Exponential Moving Average for long-term trend filter."""
+    return calculate_ema(close, period=200)
+
+
 # =====================================================================
 # 3. AVERAGE DIRECTIONAL INDEX (ADX, +DI, -DI)
 # =====================================================================

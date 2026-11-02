@@ -265,3 +265,27 @@ def get_audit_logs(limit: int = 50) -> list[dict]:
 @app.get("/system/db-status")
 def get_db_status() -> dict:
     return db_repo.get_database_status()
+
+
+# Real Market Data API
+@app.get("/market/quote")
+def get_market_quote(symbol: str = Query(..., min_length=1)) -> dict:
+    from app.services.market_data import market_data_service
+    return market_data_service.get_realtime_quote(symbol)
+
+
+@app.get("/market/ohlcv")
+def get_market_ohlcv(
+    symbol: str = Query(..., min_length=1),
+    timeframe: str = "1d",
+    period: str = "6mo",
+) -> list[dict]:
+    from app.services.market_data import market_data_service
+    df = market_data_service.get_historical_ohlcv(symbol=symbol, timeframe=timeframe, period=period)
+    return df.to_dict(orient="records")
+
+
+@app.get("/market/ticker-tape")
+def get_market_ticker_tape() -> list[dict]:
+    from app.services.market_data import market_data_service
+    return market_data_service.get_ticker_tape_quotes()

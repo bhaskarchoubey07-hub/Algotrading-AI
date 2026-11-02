@@ -68,19 +68,27 @@ def render_settings_page() -> None:
             db_repo.log_audit("admin", "UPDATE_SETTINGS", "config", "platform", {"risk_fraction": r_frac})
             st.success("Settings saved and recorded in audit trail.")
 
-        # Live Execution Compliance Gate Section
+        # Regulatory & Execution Boundary Policy
         st.markdown("---")
-        st.subheader("Live Execution Activation Gate (Compliance Protocol)")
-        st.warning(
-            "⚠️ Live execution requires completing paper trading validation, signing broker authorization, "
-            "and entering an explicit server-side compliance token. A simple UI toggle cannot bypass this gate."
+        st.subheader("Regulatory & Execution Boundary Enforcement")
+        st.markdown(
+            """
+            <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 14px 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span class="badge-paper"><span class="pulse-dot-blue"></span>PAPER_TRADING_ONLY = TRUE</span>
+                    <span style="color: #38bdf8; font-weight: 700; font-size: 0.9rem;">SEBI Compliant Safety Boundary</span>
+                </div>
+                <p style="color: #cbd5e1; font-size: 0.85rem; margin: 0 0 6px 0;">
+                    In accordance with SEBI algo-trading guidelines and platform architecture safety locks, live broker execution is strictly disabled.
+                    Every strategy decision, alert webhook, and manual trade proposal passes through the central Risk Authority and terminates inside the high-fidelity Paper Trading engine.
+                </p>
+                <div style="color: #94a3b8; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace;">
+                    Gating Status: ALL LIVE BROKER API ROUTING KEYS COMPILED AS INACTIVE • PERSISTENT REPOSITORY: ACTIVE
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        token_input = st.text_input("Live Execution Approval Token", type="password")
-        if st.button("Verify Live Activation Token"):
-            if token_input and token_input == settings.live_execution_approval_token:
-                st.success("Live approval token verified. Server authorization granted.")
-            else:
-                st.error("Invalid token. Live execution remains strictly disabled (Paper-Only enforced).")
 
     with set_tab2:
         st.subheader("Immutable System Audit Trail")

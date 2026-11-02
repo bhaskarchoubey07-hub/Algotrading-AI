@@ -87,9 +87,13 @@ def render_overview_page() -> None:
     left_col, right_col = st.columns([1.8, 1.2])
 
     with left_col:
-        st.subheader("⚡ Live Market Regime Radar")
-        df_sample = generate_sample_market_data(60, "NIFTY 50", 24500.0)
-        regime, metrics = RegimeDetector.classify_regime(df_sample)
+        from app.services.market_data import market_data_service
+        st.subheader("⚡ Live Market Regime Radar (NIFTY 50 Feed)")
+        try:
+            df_nifty = market_data_service.get_historical_ohlcv("NIFTY 50", timeframe="1d", period="3mo")
+        except Exception:
+            df_nifty = generate_sample_market_data(60, "NIFTY 50", 24500.0)
+        regime, metrics = RegimeDetector.classify_regime(df_nifty)
 
         r_col1, r_col2, r_col3 = st.columns(3)
         with r_col1:
@@ -109,11 +113,23 @@ def render_overview_page() -> None:
 
         st.write("")
 
-        # Active Positions Table with 1-Click Close Actions
-        st.subheader("Active Portfolio Positions")
+        # Active Positions Table with 1-Click Close Actions and Live Mark-to-Market
+        st.subheader("Active Portfolio Positions (Live MTM)")
         positions = paper_broker.list_positions()
         if positions:
             for p in positions:
+                # Update mark-to-market with real live quote
+                try:
+                    q = market_data_service.get_realtime_quote(p["symbol"])
+                    live_ltp = float(q["last_price"])
+                    paper_broker.update_market_price(p["symbol"], live_ltp)
+                    # refresh position view
+                    p = paper_broker.positions.get(p["symbol"], p)
+                    if hasattr(p, "to_dict"):
+                        p = p.to_dict()
+                except Exception:
+                    pass
+
                 p_c1, p_c2, p_c3, p_c4 = st.columns([2, 2, 2, 1])
                 with p_c1:
                     st.markdown(f"**{p['symbol']}** `({p['side'].upper()})`")

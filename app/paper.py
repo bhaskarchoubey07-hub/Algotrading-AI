@@ -1,11 +1,15 @@
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import json
+import logging
 import os
 from typing import Any
 from uuid import uuid4
-from app.models import OrderSide, OrderStatus, OrderType, Position, TradingSegment
 from app.backtest import calculate_indian_market_charges
+from app.database.supabase_client import db_repo
+from app.models import OrderSide, OrderStatus, OrderType, Position, TradingSegment
+
+logger = logging.getLogger("algotrade.paper")
 
 
 @dataclass
@@ -35,7 +39,12 @@ class PaperOrder:
 class PaperBroker:
     """Full-featured paper trading engine with realistic fills, portfolio margin and persistent state."""
 
-    def __init__(self, initial_cash: float = 1_000_000.0, state_file: str = "paper_trading_state.json") -> None:
+    def __init__(
+        self,
+        initial_cash: float = 1_000_000.0,
+        state_file: str = "paper_trading_state.json",
+        use_db: bool | None = None,
+    ) -> None:
         self.initial_cash = initial_cash
         self.cash_balance = initial_cash
         self.realized_pnl = 0.0
@@ -43,6 +52,7 @@ class PaperBroker:
         self.positions: dict[str, Position] = {}
         self.trades: list[dict[str, Any]] = []
         self.state_file = state_file
+        self.use_db = (state_file == "paper_trading_state.json") if use_db is None else use_db
         self.load_state()
 
     def place_order(
@@ -150,6 +160,10 @@ class PaperBroker:
                 new_qty = pos.quantity + qty
                 pos.entry_price = round(((pos.entry_price * pos.quantity) + (price * qty)) / new_qty, 2)
                 pos.quantity = new_qty
+                if order.stop_loss is not None:
+                    pos.stop_loss = order.stop_loss
+                if order.take_profit is not None:
+                    pos.take_profit = order.take_profit
                 if side == "buy":
                     self.cash_balance -= price * qty
                 else:
@@ -178,6 +192,7 @@ class PaperBroker:
 
                 if pos.quantity == 0:
                     del self.positions[sym]
+                    db_repo.delete_position(sym)
 
     def update_market_price(self, symbol: str, current_price: float) -> list[str]:
         """Update mark-to-market prices and evaluate automated stops."""
@@ -237,6 +252,15 @@ class PaperBroker:
 
     def save_state(self) -> None:
         try:
+            # 1. Save to database repository if enabled
+            if self.use_db:
+                for o in self.orders.values():
+                    db_repo.save_paper_order(asdict(o))
+                for p in self.positions.values():
+                    db_repo.save_position(p.to_dict())
+                db_repo.save_portfolio_snapshot(self.get_portfolio_summary())
+
+            # 2. Save JSON file cache
             state = {
                 "initial_cash": self.initial_cash,
                 "cash_balance": self.cash_balance,
@@ -247,10 +271,47 @@ class PaperBroker:
             }
             with open(self.state_file, "w") as f:
                 json.dump(state, f, indent=2)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Paper state persistence warning: {exc}")
 
     def load_state(self) -> None:
+        # 1. Attempt loading from persistent database repository if enabled
+        if self.use_db:
+            try:
+                db_orders = db_repo.list_paper_orders(limit=500)
+                db_positions = db_repo.list_positions()
+                db_snapshots = db_repo.list_portfolio_snapshots(limit=1)
+
+                if db_orders or db_positions:
+                    for o_dict in db_orders:
+                        o = PaperOrder(**o_dict)
+                        self.orders[o.order_id] = o
+                    for p_dict in db_positions:
+                        p = Position(
+                            symbol=p_dict["symbol"],
+                            segment=TradingSegment(p_dict["segment"]) if p_dict.get("segment") in TradingSegment.__members__ else TradingSegment.EQUITY_CASH,
+                            side=OrderSide(p_dict["side"]),
+                            quantity=int(p_dict["quantity"]),
+                            entry_price=float(p_dict["entry_price"]),
+                            current_price=float(p_dict["current_price"]),
+                            stop_loss=p_dict.get("stop_loss"),
+                            take_profit=p_dict.get("take_profit"),
+                            realized_pnl=float(p_dict.get("realized_pnl", 0.0)),
+                            unrealized_pnl=float(p_dict.get("unrealized_pnl", 0.0)),
+                            strategy_id=p_dict.get("strategy_id", "manual"),
+                            notes=p_dict.get("notes", ""),
+                        )
+                        self.positions[p.symbol] = p
+
+                    if db_snapshots:
+                        snap = db_snapshots[0]
+                        self.cash_balance = float(snap.get("cash_balance", self.initial_cash))
+                        self.realized_pnl = float(snap.get("realized_pnl", 0.0))
+                    return
+            except Exception as exc:
+                logger.debug(f"DB state loading fallback to file: {exc}")
+
+        # 2. Fallback to state JSON file
         if os.path.exists(self.state_file):
             try:
                 with open(self.state_file, "r") as f:
